@@ -176,7 +176,7 @@ const POSDZ_PRINT = (() => {
       ctx.fillText(pr, W/2, y);
     }
 
-    // ── تدوير الملصق 90° عكس عقارب الساعة ──────────────────
+    // ── تدوير الملصق 90° مع عقارب الساعة ───────────────────
     // الملصق 40x20 يُطبع على لاصق مفرود أفقياً
     // الطابعة تسحب الورق عمودياً → يجب تدوير المحتوى 90°
     // عند 90°: العرض والارتفاع يتبادلان
@@ -186,9 +186,9 @@ const POSDZ_PRINT = (() => {
     const rctx = rotated.getContext('2d');
     rctx.fillStyle = '#fff';
     rctx.fillRect(0, 0, rotated.width, rotated.height);
-    // عند 90° عكس عقارب الساعة: translate(0, W)
-    rctx.translate(0, W);
-    rctx.rotate(-Math.PI / 2);
+    // عند 90° مع عقارب الساعة: translate(H, 0)
+    rctx.translate(H, 0);
+    rctx.rotate(Math.PI / 2);
     rctx.drawImage(cv, 0, 0);
 
     return rotated;
