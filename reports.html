@@ -154,8 +154,9 @@
 <body>
 <div class="bg-animated"></div>
 <div class="page-wrapper" style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">
-    <header class="app-header" style="flex-shrink:0;">
-    <button class="menu-btn" id="menuBtn"><i class="fa-solid fa-bars"></i></button>
+    <header class="app-header" style="flex-shrink:0; position:sticky; top:0; z-index:150;">
+    <button class="menu-btn" id="menuBtn" style="position:relative;z-index:151;" onclick="openSidebar()"><i class="fa-solid fa-bars"></i></button>
+    <button onclick="window.location.href='sale.html'" title="رجوع للواجهة" style="background:transparent;border:none;color:var(--text-secondary);font-size:1.2rem;cursor:pointer;padding:8px;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-secondary)'"><i class="fa-solid fa-arrow-right"></i></button>
     <button id="_notifBell" class="notif-bell" title="الإشعارات" onclick="_toggleNotifPanel&&_toggleNotifPanel()">
       <i class="fa-solid fa-bell"></i>
       <span id="_notifBadge" class="notif-badge" style="display:none;"></span>
@@ -167,7 +168,7 @@
     </div>
   </header>
 
-  <div class="dash-layout" style="flex-direction:column;">
+  <div class="dash-layout" style="flex-direction:column; position:relative; z-index:1;">
     <!-- ── Ticker Strip ── -->
     <div class="ticker-strip" id="tickerStrip">
       <div class="ticker-inner" id="tickerInner">
