@@ -10,10 +10,10 @@
 const POSDZ_PRINT = (() => {
 
   const SIZE_MAP = {
-    '58x38': { w: 58, h: 38 }, '58x30': { w: 58, h: 30 },
-    '58x20': { w: 58, h: 20 }, '40x30': { w: 40, h: 30 },
-    '40x25': { w: 40, h: 25 }, '40x20': { w: 40, h: 20 },
-    '38x25': { w: 38, h: 25 }, '30x20': { w: 30, h: 20 },
+    '58x38': { w: 38, h: 58 }, '58x30': { w: 30, h: 58 },
+    '58x20': { w: 20, h: 58 }, '40x30': { w: 30, h: 40 },
+    '40x25': { w: 25, h: 40 }, '40x20': { w: 20, h: 40 },
+    '38x25': { w: 25, h: 38 }, '30x20': { w: 20, h: 30 },
   };
 
   const DPI      = 203;
@@ -176,22 +176,9 @@ const POSDZ_PRINT = (() => {
       ctx.fillText(pr, W/2, y);
     }
 
-    // ── تدوير الملصق 90° مع عقارب الساعة ───────────────────
-    // الطابعة الحرارية تسحب الورق عمودياً (portrait)
-    // نُدوّر المحتوى 90° CW ونُصرّح لـ @page بأبعاد portrait
-    // حتى لا تُضيف الطابعة تدويراً إضافياً
-    const rotated = document.createElement('canvas');
-    rotated.width  = H;   // العرض الجديد = ارتفاع الأصل
-    rotated.height = W;   // الارتفاع الجديد = عرض الأصل
-    const rctx = rotated.getContext('2d');
-    rctx.fillStyle = '#fff';
-    rctx.fillRect(0, 0, rotated.width, rotated.height);
-    // 90° مع عقارب الساعة: translate(H, 0) ثم rotate(+90°)
-    rctx.translate(H, 0);
-    rctx.rotate(Math.PI / 2);
-    rctx.drawImage(cv, 0, 0);
-
-    return rotated;
+    // الـ canvas مرسوم مباشرة بأبعاد portrait (w صغير، h كبير)
+    // لا حاجة لأي تدوير — الطابعة الحرارية تطبعه صحيحاً
+    return cv;
   }
 
   // ── بناء HTML الطباعة ──────────────────────────────────────
@@ -303,8 +290,7 @@ const POSDZ_PRINT = (() => {
 
     const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
     const canvas = await _drawLabel(product, opts);
-    // الصورة مُدوّرة 90° CW → نُمرّر أبعاد portrait (h×w) لـ @page
-    const html   = _makeHTML(canvas, size.h, size.w);
+    const html   = _makeHTML(canvas, size.w, size.h);
 
     for (let i=0; i<copies; i++) {
       if (i>0) await new Promise(r => setTimeout(r, 700));
