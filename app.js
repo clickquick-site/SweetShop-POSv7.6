@@ -692,9 +692,9 @@ function _silentPrint(html) {
 }
 
 // ══ printBarcodeLabel — يُفوّض إلى print.js (POSDZ_PRINT) ══
-async function printBarcodeLabel(product) {
+async function printBarcodeLabel(product, qty) {
   if (typeof POSDZ_PRINT !== 'undefined') {
-    await POSDZ_PRINT.barcode(product);
+    await POSDZ_PRINT.barcode(product, qty);
   } else {
     console.error('print.js غير محمّل — تأكد من إضافة <script src="print.js">');
     if (typeof toast === 'function') toast('⚠️ وحدة الطباعة غير محمّلة', 'danger');
@@ -961,7 +961,9 @@ const APP_I18N = {
     labelTouchKb:'الكيبورد الافتراضي', labelTouchKbDesc:'زر قابل للسحب على جانب الشاشة',
     // المخزون إضافي
     invAlerts:'تنبيهات المخزون', invTabAll:'كل المنتجات', invTabFamilies:'العائلات',
+    invTabAdjust:'🔧 تعديل المخزون',
     invTabImport:'استيراد / تصدير', invFormTitleAdd:'إضافة منتج جديد',
+    invPrintQtyLabel:'كم نسخة تريد طباعتها؟',
     invColUnit:'الوحدة', invColExpiry:'الصلاحية', invColAlert:'تنبيه',
     invLabelName:'اسم المنتج', invLabelSize:'الحجم / المقاس', invLabelExpiry:'تاريخ نهاية الصلاحية',
     invBtnClear:'تفريغ الحقول', invImportTitle:'استيراد المنتجات', invExportTitle:'تصدير المنتجات',
@@ -1059,7 +1061,9 @@ const APP_I18N = {
     userLabelName:'Username', userLabelPass:'Password',
     custDebtDate:'Debt date:',
     invAlerts:'Alertes stock', invTabAll:'Tous les produits', invTabFamilies:'Familles',
+    invTabAdjust:'🔧 Modifier stock',
     invTabImport:'Import / Export', invFormTitleAdd:'Ajouter un produit',
+    invPrintQtyLabel:'Combien de copies imprimer ?',
     invColUnit:'Unité', invColExpiry:'Expiration', invColAlert:'Alerte',
     invLabelName:'Nom du produit', invLabelSize:'Taille / Format', invLabelExpiry:"Date d'expiration",
     invBtnClear:'Vider les champs', invImportTitle:'Importer des produits', invExportTitle:'Exporter les produits',
