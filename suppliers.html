@@ -328,7 +328,7 @@
     <a class="nav-item" href="settings.html" data-role="admin,manager"><span class="nav-label" data-i18n="navSettings">الإعدادات</span></a>
     <div class="nav-item danger" onclick="doLogout()"><span class="nav-label" data-i18n="navLogout">خروج</span></div>
   </nav>
-  <div class="sidebar-footer"><span id="sidebarVersion">v7.0.0</span><span>POS DZ 2026</span></div>
+  <div class="sidebar-footer"><span id="sidebarVersion">v6.0.0</span><span>POS DZ 2026</span></div>
 </div>
 
 <div id="toast-container"></div>
@@ -389,7 +389,7 @@ function renderSuppliers(list) {
       .filter(p => p.supplierId === s.id)
       .reduce((sum, p) => sum + (p.debt || 0), 0);
     const debtCell = debt > 0
-      ? `<span style="color:#e74c3c;font-weight:900;">${debt.toFixed(2)} ${currency}</span>`
+      ? `<span style="color:#e74c3c;font-weight:900;">${formatDZ(debt)}</span>`
       : `<span style="color:var(--success);">لا ديون ✅</span>`;
     return `<tr>
       <td><b>${s.name}</b>${s.note ? `<br><small style="color:var(--text-secondary);">${s.note}</small>` : ''}</td>
@@ -568,7 +568,7 @@ function calcPurTotal() {
     inp[3].value = sub > 0 ? sub.toFixed(2) : '';
     total += sub;
   });
-  document.getElementById('purTotalDisplay').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('purTotalDisplay').textContent = formatDZ(total);
   calcPurDebt();
 }
 
@@ -585,10 +585,10 @@ function calcPurDebt() {
     const paid = parseFloat(document.getElementById('purPaid').value) || 0;
     const debt = Math.max(0, total - paid);
     el.style.display = '';
-    el.textContent   = 'الدين المتبقي: ' + debt.toFixed(2) + ' ' + currency;
+    el.textContent   = 'الدين المتبقي: ' + formatDZ(debt);
   } else if (st === 'debt' && total > 0) {
     el.style.display = '';
-    el.textContent   = 'الدين الكامل: ' + total.toFixed(2) + ' ' + currency;
+    el.textContent   = 'الدين الكامل: ' + formatDZ(total);
   } else {
     el.style.display = 'none';
   }
@@ -694,11 +694,11 @@ function openPayPurchase(id) {
     <div class="stat-row"><span>المورد:</span>
       <span class="stat-val">${sup ? sup.name : '—'}</span></div>
     <div class="stat-row"><span>إجمالي الفاتورة:</span>
-      <span class="stat-val">${p.total.toFixed(2)} ${currency}</span></div>
+      <span class="stat-val">${formatDZ(p.total)}</span></div>
     <div class="stat-row"><span>المسدد:</span>
-      <span class="stat-val" style="color:var(--success);">${(p.paid || 0).toFixed(2)} ${currency}</span></div>
+      <span class="stat-val" style="color:var(--success);">${formatDZ((p.paid || 0))}</span></div>
     <div class="stat-row"><span>الدين المتبقي:</span>
-      <span class="stat-val" style="color:#e74c3c;">${rem.toFixed(2)} ${currency}</span></div>`;
+      <span class="stat-val" style="color:#e74c3c;">${formatDZ(rem)}</span></div>`;
   document.getElementById('payPurchaseAmount').value = rem.toFixed(2);
   updatePayPurchaseRemain();
   openModal('payPurchaseModal');
@@ -714,7 +714,7 @@ function updatePayPurchaseRemain() {
     el.textContent = '✅ سيُسدَّد الدين بالكامل';
     el.style.color = 'var(--success)';
   } else {
-    el.textContent = 'المتبقي بعد الدفع: ' + (rem - amount).toFixed(2) + ' ' + currency;
+    el.textContent = 'المتبقي بعد الدفع: ' + (rem - formatDZ(amount));
     el.style.color = 'var(--warning)';
   }
 }
@@ -734,7 +734,7 @@ async function confirmPayPurchase() {
   toast(
     newDebt <= 0
       ? '✅ تم تسديد الدين بالكامل'
-      : `✅ تم تسجيل دفع ${amount.toFixed(2)} ${currency}`,
+      : `✅ تم تسجيل دفع ${formatDZ(amount)}`,
     'success'
   );
   closeModal('payPurchaseModal');
@@ -761,9 +761,9 @@ function updatePurStats() {
   const tot  = allPurchases.reduce((s, p) => s + p.total,       0);
   const paid = allPurchases.reduce((s, p) => s + (p.paid || 0), 0);
   const debt = allPurchases.reduce((s, p) => s + (p.debt || 0), 0);
-  document.getElementById('purStatTotal').textContent = tot.toFixed(2)  + ' ' + currency;
-  document.getElementById('purStatPaid').textContent  = paid.toFixed(2) + ' ' + currency;
-  document.getElementById('purStatDebt').textContent  = debt.toFixed(2) + ' ' + currency;
+  document.getElementById('purStatTotal').textContent = formatDZ(tot);
+  document.getElementById('purStatPaid').textContent  = formatDZ(paid);
+  document.getElementById('purStatDebt').textContent  = formatDZ(debt);
 }
 
 function updateDebtBadge() {
@@ -790,14 +790,14 @@ function renderPurchases(list) {
     const badge = p.payStatus === 'paid'
       ? `<span class="pur-badge-paid">✅ مسددة</span>`
       : p.payStatus === 'partial'
-        ? `<span class="pur-badge-partial">🟡 جزئي — متبقي: ${debt.toFixed(2)} ${currency}</span>`
-        : `<span class="pur-badge-debt">🔴 دين: ${debt.toFixed(2)} ${currency}</span>`;
+        ? `<span class="pur-badge-partial">🟡 جزئي — متبقي: ${formatDZ(debt)}</span>`
+        : `<span class="pur-badge-debt">🔴 دين: ${formatDZ(debt)}</span>`;
 
     const rows = (p.items || []).map(i => `<tr>
       <td>${i.name}</td>
       <td style="text-align:center;">${i.quantity}</td>
-      <td>${i.unitPrice.toFixed(2)} ${currency}</td>
-      <td style="color:var(--primary-light);font-weight:700;">${i.total.toFixed(2)} ${currency}</td>
+      <td>${formatDZ(i.unitPrice)}</td>
+      <td style="color:var(--primary-light);font-weight:700;">${formatDZ(i.total)}</td>
     </tr>`).join('');
 
     return `<div class="pur-card">
@@ -822,16 +822,16 @@ function renderPurchases(list) {
         <tbody>${rows}</tbody>
         <tfoot><tr>
           <td colspan="3" style="font-weight:700;color:var(--text-secondary);">الإجمالي</td>
-          <td style="font-weight:900;color:var(--primary-light);">${p.total.toFixed(2)} ${currency}</td>
+          <td style="font-weight:900;color:var(--primary-light);">${formatDZ(p.total)}</td>
         </tr></tfoot>
       </table>
       <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;font-size:0.85rem;">
         <span style="color:var(--text-secondary);">
-          المدفوع: <b style="color:var(--success);">${(p.paid || 0).toFixed(2)} ${currency}</b>
+          المدفوع: <b style="color:var(--success);">${formatDZ((p.paid || 0))}</b>
         </span>
         ${debt > 0
           ? `<span style="color:var(--text-secondary);">
-               الدين: <b style="color:#e74c3c;">${debt.toFixed(2)} ${currency}</b>
+               الدين: <b style="color:#e74c3c;">${formatDZ(debt)}</b>
              </span>`
           : ''}
       </div>
