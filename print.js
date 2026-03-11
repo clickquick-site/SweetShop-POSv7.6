@@ -177,16 +177,18 @@ const POSDZ_PRINT = (() => {
     // ── تدوير الملصق 90° عكس عقارب الساعة ──────────────────
     // الملصق 40x20 يُطبع على لاصق مفرود أفقياً
     // الطابعة تسحب الورق عمودياً → يجب تدوير المحتوى 90°
+    // عند 45°: القطر = sqrt(W²+H²) هو الحجم المطلوب للـ canvas
+    const diag = Math.ceil(Math.sqrt(W*W + H*H));
     const rotated = document.createElement('canvas');
-    rotated.width  = H;   // العرض الجديد = الارتفاع القديم
-    rotated.height = W;   // الارتفاع الجديد = العرض القديم
+    rotated.width  = diag;
+    rotated.height = diag;
     const rctx = rotated.getContext('2d');
     rctx.fillStyle = '#fff';
     rctx.fillRect(0, 0, rotated.width, rotated.height);
-    // ندير 90° عكس عقارب الساعة (CCW)
-    rctx.translate(0, W);
-    rctx.rotate(-Math.PI / 2);
-    rctx.drawImage(cv, 0, 0);
+    // نضع مركز الدوران في وسط الـ canvas
+    rctx.translate(diag / 2, diag / 2);
+    rctx.rotate(-Math.PI / 4);
+    rctx.drawImage(cv, -W / 2, -H / 2);
 
     return rotated;
   }
@@ -300,8 +302,9 @@ const POSDZ_PRINT = (() => {
 
     const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
     const canvas = await _drawLabel(product, opts);
-    // الصورة مدوّرة 90° → نبادل العرض والارتفاع في HTML
-    const html   = _makeHTML(canvas, size.h, size.w);
+    // الصورة مدوّرة 45° → نمرر القطر كعرض وارتفاع
+    const diagMM = Math.ceil(Math.sqrt(size.w*size.w + size.h*size.h));
+    const html   = _makeHTML(canvas, diagMM, diagMM);
 
     for (let i=0; i<copies; i++) {
       if (i>0) await new Promise(r => setTimeout(r, 700));
