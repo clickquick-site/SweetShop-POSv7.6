@@ -122,7 +122,6 @@
           <select class="select-field" id="language" style="width:200px;" onchange="onLangChange(this.value)">
             <option value="ar">🇩🇿 العربية</option>
             <option value="fr">🇫🇷 Français</option>
-            <option value="en">🇬🇧 English</option>
           </select>
         </div>
 
@@ -370,6 +369,7 @@
                 <option value="58x20">58 × 20 مم — ضيق</option>
                 <option value="40x30">40 × 30 مم — مربع صغير</option>
                 <option value="40x25">40 × 25 مم</option>
+                <option value="40x20">40 × 20 مم — Xprinter 420B ✓</option>
                 <option value="38x25">38 × 25 مم — صغير</option>
                 <option value="30x20">30 × 20 مم — جواهر</option>
               </select>
@@ -741,12 +741,12 @@
             <div style="display:flex;justify-content:center;gap:28px;">
               <div>
                 <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);">الإصدار</div>
-                <div style="font-size:1.3rem;font-weight:900;color:#fff;">6.0.0</div>
+                <div style="font-size:1.3rem;font-weight:900;color:#fff;" id="aboutVersionNum">—</div>
               </div>
               <div style="width:1px;background:rgba(255,255,255,0.2);"></div>
               <div>
                 <div style="font-size:0.72rem;color:rgba(255,255,255,0.6);">تاريخ الإصدار</div>
-                <div style="font-size:1.3rem;font-weight:900;color:#fff;">2026</div>
+                <div style="font-size:1.3rem;font-weight:900;color:#fff;" id="aboutVersionDate">—</div>
               </div>
             </div>
           </div>
@@ -830,14 +830,14 @@
       <a class="nav-item" href="customers.html"><span class="nav-label" data-i18n="navCustomers">الزبائن</span></a>
       <a class="nav-item" href="reports.html" data-role="admin,manager"><span class="nav-label" data-i18n="navReports">إدارة الأعمال</span></a>
       <a class="nav-item" href="suppliers.html" data-role="admin,manager"><span class="nav-label" data-i18n="navSuppliers">الموردون</span></a>
-      <a class="nav-item" href="expenses.html" data-role="admin,manager"><span class="nav-label">المصاريف والعمال</span></a>
+      <a class="nav-item" href="expenses.html" data-role="admin,manager"><span class="nav-label" data-i18n="navExpenses">المصاريف والعمال</span></a>
       <span class="nav-group-label" data-i18n="navGroupSystem">النظام</span>
       <a class="nav-item" href="users.html" data-role="admin"><span class="nav-label" data-i18n="navUsers">المستخدمون</span></a>
       <a class="nav-item active" href="settings.html" data-role="admin,manager"><span class="nav-label" data-i18n="navSettings">الإعدادات</span></a>
 
       <div class="nav-item danger" onclick="doLogout()"><span class="nav-label" data-i18n="navLogout">خروج</span></div>
     </nav>
-    <div class="sidebar-footer"><span id="sidebarVersion">v6.0.0</span><span>POS DZ 2026</span></div>
+    <div class="sidebar-footer"><span id="sidebarVersion">v7.0.0</span><span>POS DZ 2026</span></div>
   </div>
 
   <div class="tab-content" id="content-email" style="display:none;">
@@ -962,6 +962,7 @@
     </div>
   </div>
 <div id="toast-container"></div>
+<script src="print.js"></script>
 <script src="app.js"></script>
 <script src="sync.js"></script>
 <script>
@@ -1095,7 +1096,10 @@ function applyTranslation(lang) {
 }
 
 function onLangChange(lang) {
+  // تطبيق فوري على الصفحة الحالية
   applyTranslation(lang);
+  // حفظ في localStorage فوراً لكي تقرأه الصفحات الأخرى عند تحميلها
+  localStorage.setItem('posdz_lang', lang);
 }
 
 // ═══════════════════════════════════════════════════
@@ -1416,6 +1420,11 @@ async function init() {
   await loadAllSettings();
   await loadSyncScaleSettings();
   await loadNotifSettings();
+  // ── ربط الإصدار بـ APP_VERSION ──
+  const vn = document.getElementById('aboutVersionNum');
+  const vd = document.getElementById('aboutVersionDate');
+  if (vn && typeof APP_VERSION !== 'undefined') vn.textContent = APP_VERSION.number;
+  if (vd && typeof APP_VERSION !== 'undefined') vd.textContent = APP_VERSION.date;
 }
 
 function switchTab(name) {
@@ -1521,8 +1530,9 @@ async function saveSettings(section) {
   if (section === 'program') {
     await setSetting('dateFormat',    document.getElementById('dateFormat').value);
     await setSetting('currency',      document.getElementById('currency').value);
-    const lang = document.getElementById('language').value;
-    await setSetting('language',      lang);
+    const lang    = document.getElementById('language').value;
+    const prevLang = localStorage.getItem('posdz_lang') || 'ar';
+    await setSetting('language', lang);
     const font = document.getElementById('appFont').value;
     await setSetting('appFont',       font);
     await setSetting('fontSize',      String(currentFontSize));
@@ -1537,6 +1547,13 @@ async function saveSettings(section) {
     // نسبة الفائدة على الديون
     await setSetting('debtInterestRate', document.getElementById('debtInterestRate')?.value || '0');
     await setSetting('debtInterestType', document.getElementById('debtInterestType')?.value || 'daily');
+    // ── إذا تغيرت اللغة → reload فوري لتطبيق التغيير على كل العناصر ──
+    if (lang !== prevLang) {
+      localStorage.setItem('posdz_lang', lang);
+      toast('✅ تم الحفظ — جاري تطبيق اللغة...', 'success');
+      setTimeout(() => location.reload(), 800);
+      return;
+    }
     applyTranslation(lang);
     applyFontPreview(font);
     // Apply new dual-attribute theme system
