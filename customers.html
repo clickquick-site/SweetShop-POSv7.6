@@ -211,7 +211,7 @@
 
       <div class="nav-item danger" onclick="doLogout()"><span class="nav-label" data-i18n="navLogout">خروج</span></div>
     </nav>
-    <div class="sidebar-footer"><span id="sidebarVersion">v7.0.0</span><span>POS DZ 2026</span></div>
+    <div class="sidebar-footer"><span id="sidebarVersion">v6.0.0</span><span>POS DZ 2026</span></div>
   </div>
 <div id="toast-container"></div>
 <script src="app.js"></script>
@@ -300,11 +300,11 @@ function renderCustomers() {
           <div class="cust-name">👤 ${c.name}</div>
           <div class="cust-phone">📞 ${c.phone || '—'}</div>
           ${lastDebt ? `<div style="font-size:0.75rem;color:var(--warning);margin-top:2px;">📅 تاريخ الدين: ${formatDate(lastDebt.date)}</div>` : ''}
-          ${visitCount > 0 ? `<div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;">🛒 ${visitCount} زيارة — إجمالي: <b style="color:var(--primary-light);">${totalBought.toFixed(2)} ${currency}</b></div>` : ''}
+          ${visitCount > 0 ? `<div style="font-size:0.73rem;color:var(--text-secondary);margin-top:2px;">🛒 ${visitCount} زيارة — إجمالي: <b style="color:var(--primary-light);">${formatDZ(totalBought)}</b></div>` : ''}
         </div>
         <div style="text-align:left;">
           ${hasDebt
-            ? `<div class="cust-debt-amount">${totalDebt.toFixed(2)} ${currency}</div><div style="font-size:0.72rem;color:var(--danger);">دين متبقي</div>`
+            ? `<div class="cust-debt-amount">${formatDZ(totalDebt)}</div><div style="font-size:0.72rem;color:var(--danger);">دين متبقي</div>`
             : `<div class="cust-debt-none">✅ لا ديون</div>`}
         </div>
       </div>
@@ -340,7 +340,7 @@ async function viewDebts(customerId) {
       const daysAgo = Math.floor((Date.now() - new Date(d.date)) / 86400000);
       const daysColor = daysAgo >= 30 ? 'var(--danger)' : daysAgo >= 14 ? 'var(--warning)' : 'var(--text-secondary)';
       const waText = encodeURIComponent(
-        `السلام عليكم ${c ? c.name : ''}،\nتذكير بدين قائم بقيمة ${d.amount.toFixed(2)} ${currency} منذ ${daysAgo} يوم.\nشكراً.`
+        `السلام عليكم ${c ? c.name : ''}،\nتذكير بدين قائم بقيمة ${formatDZ(d.amount)} منذ ${daysAgo} يوم.\nشكراً.`
       );
       const waLink = c?.phone ? `https://wa.me/${c.phone.replace(/\D/g,'')}?text=${waText}` : '';
       return `<div class="debt-detail-row">
@@ -352,7 +352,7 @@ async function viewDebts(customerId) {
             ? `<div class="debt-detail-date" style="color:var(--warning);">الأصلي: ${d.originalAmount.toFixed(2)} | مسدد: ${(d.originalAmount - d.amount).toFixed(2)}</div>` : ''}
         </div>
         <div style="text-align:left;">
-          <div style="color:var(--danger);font-weight:900;">${d.amount.toFixed(2)} ${currency}</div>
+          <div style="color:var(--danger);font-weight:900;">${formatDZ(d.amount)}</div>
           <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
             <button class="btn btn-warning btn-sm" onclick="openPartialModal(${customerId},${d.amount},${d.id})" style="font-size:0.75rem;padding:3px 7px;">💰 جزئي</button>
             <button class="btn btn-success btn-sm" onclick="payDebt(${d.id},${d.amount},${customerId})" style="font-size:0.75rem;padding:3px 7px;">✅ كلي</button>
@@ -368,7 +368,7 @@ async function viewDebts(customerId) {
     html += paid.slice(-5).reverse().map(d =>
       `<div class="debt-detail-row" style="opacity:0.6;">
         <div>
-          <div style="font-size:0.82rem;"><s>${(d.originalAmount||d.amount).toFixed(2)} ${currency}</s></div>
+          <div style="font-size:0.82rem;"><s>${formatDZ((d.originalAmount||d.amount))}</s></div>
           <div class="debt-detail-date">📅 سُدِّد: ${formatDate(d.paidDate || d.date)}</div>
         </div>
         <div><span class="badge badge-success">✅ مسدد</span></div>
@@ -388,7 +388,7 @@ function openPartialModal(customerId, totalAmount, singleDebtId = null) {
   const c = allCustomers.find(x => x.id === customerId);
   document.getElementById('partialPayInfo').innerHTML = `
     <div style="font-weight:700;color:var(--primary-light);font-size:1rem;margin-bottom:4px;">👤 ${c ? c.name : ''}</div>
-    <div>المبلغ المتبقي: <b style="color:var(--danger);font-size:1.1rem;">${totalAmount.toFixed(2)} ${currency}</b></div>`;
+    <div>المبلغ المتبقي: <b style="color:var(--danger);font-size:1.1rem;">${formatDZ(totalAmount)}</b></div>`;
   document.getElementById('partialPayAmount').value = '';
   document.getElementById('partialRemainDisplay').textContent = '';
   closeModal('debtDetailModal');
@@ -401,7 +401,7 @@ function updatePartialRemain() {
   const el     = document.getElementById('partialRemainDisplay');
   if (paid > 0) {
     if (paid >= activeDebtTotal) { el.textContent = '✅ يكفي للتسديد الكامل'; el.style.color = 'var(--success)'; }
-    else { el.textContent = `المتبقي بعد الدفع: ${remain.toFixed(2)} ${currency}`; el.style.color = 'var(--warning)'; }
+    else { el.textContent = `المتبقي بعد الدفع: ${formatDZ(remain)}`; el.style.color = 'var(--warning)'; }
   } else el.textContent = '';
 }
 
@@ -449,7 +449,7 @@ async function confirmPartialPay() {
   });
   await dbAdd('logs', { action: 'partial_debt_pay', details: `تسديد جزئي ${paid} ${currency} — ${c ? c.name : ''}`, date: now });
 
-  toast(`✅ تم تسجيل دفع ${paid.toFixed(2)} ${currency}`, 'success', 3000);
+  toast(`✅ تم تسجيل دفع ${formatDZ(paid)}`, 'success', 3000);
   closeModal('partialPayModal');
 
   if (await customConfirmAsync('هل تريد طباعة وصل التسديد الجزئي؟')) {
@@ -476,7 +476,7 @@ async function confirmPartialPay() {
 }
 
 async function payDebt(debtId, amount, customerId) {
-  const _ok1 = await customConfirmAsync(`تسديد ${amount.toFixed(2)} ${currency}؟`);
+  const _ok1 = await customConfirmAsync(`تسديد ${formatDZ(amount)}؟`);
   if (!_ok1) return;
   const now  = new Date().toISOString();
   const debt = await dbGet('debts', debtId);
@@ -497,7 +497,7 @@ async function payDebt(debtId, amount, customerId) {
     debtSettlement: true, note: `تسديد كلي لدين — ${c ? c.name : ''}`
   });
   await dbAdd('logs', { action: 'debt_paid', details: `تسديد كلي ${amount} ${currency} — ${c ? c.name : ''}`, date: now });
-  toast(`✅ تم تسديد الدين ${amount.toFixed(2)} ${currency}`, 'success');
+  toast(`✅ تم تسديد الدين ${formatDZ(amount)}`, 'success');
   closeModal('debtDetailModal');
   if (await customConfirmAsync('طباعة وصل التسديد؟')) {
     await printInvoice({
@@ -517,7 +517,7 @@ async function payDebt(debtId, amount, customerId) {
 }
 
 async function payAllDebts(customerId, totalAmount) {
-  const _ok2 = await customConfirmAsync(`تسديد كامل الديون: ${totalAmount.toFixed(2)} ${currency}؟`);
+  const _ok2 = await customConfirmAsync(`تسديد كامل الديون: ${formatDZ(totalAmount)}؟`);
   if (!_ok2) return;
   const now  = new Date().toISOString();
   const c    = allCustomers.find(x => x.id === customerId);
@@ -537,7 +537,7 @@ async function payAllDebts(customerId, totalAmount) {
     debtSettlement: true, note: `تسديد كلي جميع الديون — ${c ? c.name : ''}`
   });
   await dbAdd('logs', { action: 'all_debt_paid', details: `تسديد كلي ${totalAmount} ${currency} — ${c ? c.name : ''}`, date: now });
-  toast(`✅ تم تسديد كامل الديون: ${totalAmount.toFixed(2)} ${currency}`, 'success', 3000);
+  toast(`✅ تم تسديد كامل الديون: ${formatDZ(totalAmount)}`, 'success', 3000);
   if (await customConfirmAsync('طباعة وصل التسديد؟')) {
     await printInvoice({
       invoiceNumber,
@@ -677,8 +677,8 @@ async function viewPaymentHistory(customerId) {
     return `<tr>
       <td style="font-size:0.78rem;color:var(--text-secondary);">${fmtDt(s.date)}</td>
       <td><b style="color:var(--primary-light);">${s.invoiceNumber || '—'}</b></td>
-      <td style="font-weight:900;color:var(--success);">${s.paid.toFixed(2)} ${currency}</td>
-      ${isPartial ? `<td style="color:var(--danger);font-size:0.85rem;">${(s.remainingDebt||0).toFixed(2)} ${currency}</td>` : '<td style="color:var(--success);">—</td>'}
+      <td style="font-weight:900;color:var(--success);">${formatDZ(s.paid)}</td>
+      ${isPartial ? `<td style="color:var(--danger);font-size:0.85rem;">${formatDZ((s.remainingDebt||0))}</td>` : '<td style="color:var(--success);">—</td>'}
       <td>${badge}</td>
     </tr>`;
   }).join('');
@@ -691,7 +691,7 @@ async function viewPaymentHistory(customerId) {
       <button class="btn btn-secondary btn-sm" onclick="viewDebts(${customerId})">← رجوع للديون</button>
     </div>
     <div style="background:rgba(39,174,96,0.1);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:10px;font-size:0.88rem;">
-      إجمالي ما تم دفعه: <b style="color:var(--success);font-size:1rem;">${totalPaid.toFixed(2)} ${currency}</b>
+      إجمالي ما تم دفعه: <b style="color:var(--success);font-size:1rem;">${formatDZ(totalPaid)}</b>
       &nbsp;|&nbsp; عدد الدفعات: <b>${settlements.length}</b>
     </div>
     <div style="overflow-x:auto;">
@@ -729,7 +729,7 @@ async function openInterestModal(customerId) {
   document.getElementById('interestCustomerInfo').innerHTML =
     `<b style="color:var(--primary-light);">👤 ${c ? c.name : ''}</b>
      &nbsp;|&nbsp; عدد الديون: <b>${unpaid.length}</b>
-     &nbsp;|&nbsp; إجمالي الديون: <b style="color:var(--danger);">${total.toFixed(2)} ${currency}</b>`;
+     &nbsp;|&nbsp; إجمالي الديون: <b style="color:var(--danger);">${formatDZ(total)}</b>`;
 
   document.getElementById('interestType').value         = defaultType;
   document.getElementById('interestRate').value         = defaultRate || '';
@@ -769,8 +769,8 @@ function recalcInterest() {
     else                          interest = fixed;
     totalInterest += interest;
     return `<div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-      <span style="color:var(--text-secondary);">${d.amount.toFixed(2)} ${currency} (${daysAgo} يوم)</span>
-      <span style="color:#f59e0b;font-weight:700;">+${interest.toFixed(2)} ${currency}</span>
+      <span style="color:var(--text-secondary);">${formatDZ(d.amount)} (${daysAgo} يوم)</span>
+      <span style="color:#f59e0b;font-weight:700;">+${formatDZ(interest)}</span>
     </div>`;
   }).join('');
 
@@ -784,7 +784,7 @@ function recalcInterest() {
     ${lines}
     <div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:2px solid rgba(245,158,11,0.4);">
       <span style="font-weight:800;color:var(--text-primary);">إجمالي الفائدة:</span>
-      <span style="font-weight:900;font-size:1.1rem;color:#f59e0b;">${totalInterest.toFixed(2)} ${currency}</span>
+      <span style="font-weight:900;font-size:1.1rem;color:#f59e0b;">${formatDZ(totalInterest)}</span>
     </div>`;
 }
 
@@ -812,7 +812,7 @@ async function applyInterest() {
   if (totalInterest <= 0) { toast('مبلغ الفائدة يساوي صفر، تحقق من النسبة', 'warning'); return; }
 
   const confirmed = await customConfirmAsync(
-    `إضافة فائدة بمبلغ ${totalInterest.toFixed(2)} ${currency} على ديون ${c ? c.name : ''}؟\n\nسيتم إضافتها كدين جديد.`
+    `إضافة فائدة بمبلغ ${formatDZ(totalInterest)} على ديون ${c ? c.name : ''}؟\n\nسيتم إضافتها كدين جديد.`
   );
   if (!confirmed) return;
 
@@ -871,7 +871,7 @@ async function applyInterest() {
     date      : now
   });
 
-  toast(`✅ تم إضافة فائدة ${totalInterest.toFixed(2)} ${currency} لـ ${c ? c.name : ''}`, 'success', 4000);
+  toast(`✅ تم إضافة فائدة ${formatDZ(totalInterest)} لـ ${c ? c.name : ''}`, 'success', 4000);
   closeModal('interestModal');
   await loadAll();
   viewDebts(_interestCustomerId);
