@@ -7,7 +7,7 @@ const APP_VERSION = { number:'6.0.0', date:'2026-03-02', name:'POS DZ' };
 // ══════════════════════════════════════════════════════════════
 //  IndexedDB
 // ══════════════════════════════════════════════════════════════
-const DB_NAME = 'POSDZ_DB', DB_VERSION = 4;
+const DB_NAME = 'POSDZ_DB', DB_VERSION = 5;
 let db = null;
 
 function openDB() {
@@ -33,6 +33,20 @@ function openDB() {
       if (!d.objectStoreNames.contains('syncQueue'))  { const s=d.createObjectStore('syncQueue',{keyPath:'id',autoIncrement:true}); s.createIndex('createdAt','createdAt',{unique:false}); }
       if (!d.objectStoreNames.contains('workers'))    { d.createObjectStore('workers',{keyPath:'id',autoIncrement:true}); }
       if (!d.objectStoreNames.contains('workerPayments')) { const s=d.createObjectStore('workerPayments',{keyPath:'id',autoIncrement:true}); s.createIndex('workerId','workerId',{unique:false}); s.createIndex('date','date',{unique:false}); }
+      // ══ v5: إزالة القيد unique على اسم المنتج — يسمح بنفس الاسم بأحجام مختلفة ══
+      if (e.oldVersion < 5 && e.oldVersion > 0 && d.objectStoreNames.contains('products')) {
+        const tx = e.target.transaction;
+        const oldStore = tx.objectStore('products');
+        const getAllReq = oldStore.getAll();
+        getAllReq.onsuccess = () => {
+          const allProducts = getAllReq.result;
+          d.deleteObjectStore('products');
+          const ns = d.createObjectStore('products', {keyPath:'id', autoIncrement:true});
+          ns.createIndex('name','name',{unique:false});
+          ns.createIndex('barcode','barcode',{unique:false});
+          allProducts.forEach(p => { try { ns.add(p); } catch(err) {} });
+        };
+      }
     };
     req.onsuccess = async (e) => { db=e.target.result; await seedDefaults(); resolve(db); };
     req.onerror   = () => reject(req.error);
@@ -176,7 +190,27 @@ function startOfYear()     { const d=new Date();d.setMonth(0,1);d.setHours(0,0,0
 // Currency
 let _currency='DA';
 async function loadCurrency() { _currency=await getSetting('currency')||'DA'; }
-function formatMoney(v) { return parseFloat(v||0).toFixed(2)+' '+_currency; }
+
+// ══ formatDZ — تنسيق جزائري: نقطة للآلاف، فاصلة للكسور، بدون أصفار زائدة ══
+function formatDZ(v) {
+  const num = parseFloat(v || 0);
+  const isNeg = num < 0;
+  const abs = Math.abs(num);
+  const intPart = Math.floor(abs);
+  const decPart = Math.round((abs - intPart) * 100);
+  // تنسيق الجزء الصحيح بنقطة كفاصل آلاف
+  const intStr = intPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  let result;
+  if (decPart > 0) {
+    const decStr = decPart < 10 ? '0' + decPart : '' + decPart;
+    result = intStr + ',' + decStr;
+  } else {
+    result = intStr;
+  }
+  return (isNeg ? '-' : '') + result + ' ' + _currency;
+}
+// توافقية: formatMoney يستدعي formatDZ
+function formatMoney(v) { return formatDZ(v); }
 
 // ══════════════════════════════════════════════════════════════
 //  Toast
