@@ -1,14 +1,17 @@
 // ══════════════════════════════════════════════════════════════
-//  POSDZ_PRINT — وحدة الطباعة — v8.0.0
-//  ✅ باركود حقيقي عبر JsBarcode (Code128 / EAN13 / EAN8)
-//  ✅ X-Dimension ديناميكي — Pixel Snapping حقيقي
-//  ✅ ملصق يملأ الحجم تماماً بدون هدر
-//  ✅ اختيار الطابعة من قائمة حقيقية عبر السيرفر
+//  POSDZ_PRINT — v9.0.0 — الحل النهائي
+//
+//  المنهج: رسم الملصق على Canvas بـ DPI الطابعة الحقيقي
+//  ثم طباعة صورة PNG واحدة بدون @page وبدون margins
+//
+//  لماذا Canvas؟
+//  • المتصفح يتجاهل @page size → Canvas يرسم بالبكسل الدقيق
+//  • JsBarcode يرسم على Canvas مباشرة → باركود حقيقي قابل للمسح
+//  • الصورة تُطبع بأبعاد الملصق بالمم → لا تدوير، لا هدر
 // ══════════════════════════════════════════════════════════════
 
 const POSDZ_PRINT = (() => {
 
-  // ── أبعاد الملصقات (مم) ─────────────────────────────────────
   const SIZE_MAP = {
     '58x38': { w: 58, h: 38 },
     '58x30': { w: 58, h: 30 },
@@ -20,452 +23,361 @@ const POSDZ_PRINT = (() => {
     '30x20': { w: 30, h: 20 },
   };
 
-  // ── URL مكتبة JsBarcode (CDN — تعمل offline بعد أول تحميل) ──
-  const JSBARCODE_CDN = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
+  // DPI الطابعة الحرارية (Xprinter XP-420B = 203 DPI)
+  const PRINTER_DPI = 203;
+  const MM_PER_INCH = 25.4;
+  const mm2px = mm => Math.round((mm / MM_PER_INCH) * PRINTER_DPI);
 
-  // ── تحديد نوع الباركود تلقائياً بناءً على الرقم ────────────
-  function _detectFormat(code) {
-    const s = String(code).trim();
+  // ── تحديد تنسيق الباركود ──────────────────────────────────
+  function _fmt(code) {
+    const s = String(code).replace(/\s/g, '');
     if (/^\d{13}$/.test(s)) return 'EAN13';
     if (/^\d{8}$/.test(s))  return 'EAN8';
     if (/^\d{12}$/.test(s)) return 'UPC';
-    return 'CODE128'; // الأشمل — يقبل حروف وأرقام
+    return 'CODE128';
   }
 
-  // ── حساب X-Dimension ديناميكي (Pixel Snapping حقيقي) ────────
-  // يحدد عرض أضيق شريط بحيث يملأ الباركود العرض المتاح تماماً
-  // بدون أشرطة جزئية أو هدر
-  function _calcXDim(widthMM, code, format) {
+  function _units(code, fmt) {
+    if (fmt === 'EAN13') return 95;
+    if (fmt === 'EAN8')  return 67;
+    if (fmt === 'UPC')   return 95;
+    return (String(code).length + 3) * 11 + 35;
+  }
+
+  // ── تحميل JsBarcode مرة واحدة ─────────────────────────────
+  let _bcLoaded = false;
+  function _loadBC() {
+    return new Promise(resolve => {
+      if (typeof JsBarcode !== 'undefined') { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js';
+      s.onload = () => { _bcLoaded = true; resolve(); };
+      s.onerror = () => resolve();
+      document.head.appendChild(s);
+    });
+  }
+
+  // ── قطع النص إذا تجاوز العرض ──────────────────────────────
+  function _clip(ctx, text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+
+  // ── رسم أشرطة بدائية (fallback) ───────────────────────────
+  function _fallbackBars(ctx, x, y, w, h, code) {
     const s = String(code);
-    // عدد وحدات Code128 تقريبياً: (طول + 3 حارسات + توقف) × 11 وحدة
-    // EAN13: 95 وحدة ثابتة
-    let units;
-    if (format === 'EAN13') units = 95;
-    else if (format === 'EAN8') units = 67;
-    else if (format === 'UPC') units = 95;
-    else units = (s.length + 3) * 11 + 35; // Code128 تقريبي
-
-    // تحويل العرض المتاح من مم إلى px عند 96dpi، مع هامش أمان
-    const availablePX = (widthMM - 2) * 3.7795;
-    // X-Dimension = المساحة المتاحة ÷ عدد الوحدات
-    const xDim = availablePX / units;
-    // Pixel Snapping: تقريب لأقرب 0.5px لضمان أشرطة متناسقة
-    return Math.max(0.8, Math.round(xDim * 2) / 2);
+    const uw = Math.max(1, w / ((s.length + 4) * 9));
+    let cx = x;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      for (let j = 0; j < 7; j++) {
+        if ((c >> (6 - j)) & 1) ctx.fillRect(cx, y, uw, h);
+        cx += uw;
+      }
+      cx += uw * 0.5;
+    }
   }
 
-  // ── بناء HTML باركود حقيقي عبر JsBarcode ────────────────────
-  function _buildBarcodeHTML(code, widthMM, heightMM, format) {
-    const fmt  = format || _detectFormat(code);
-    const xDim = _calcXDim(widthMM, code, fmt);
-    // ارتفاع الأشرطة بالبكسل
-    const barH = Math.max(15, Math.round(heightMM * 3.7795));
+  // ── رسم الملصق كاملاً على Canvas ──────────────────────────
+  async function _render(product, opts) {
+    const { sName, cur, bcFont, bcType,
+            showStore, showName, showPrice, size, fs, bv } = opts;
 
-    // SVG inline — JsBarcode يرسم عليه مباشرة
-    // width=100% يجعله يتمدد ليملأ عرض الملصق تماماً
-    return `
-      <svg id="_bc_svg" style="width:100%;display:block;"></svg>
-      <script>
-        (function() {
-          try {
-            JsBarcode('#_bc_svg', ${JSON.stringify(String(code))}, {
-              format:      ${JSON.stringify(fmt)},
-              width:       ${xDim},
-              height:      ${barH},
-              displayValue: false,
-              margin:      0,
-              background:  '#ffffff',
-              lineColor:   '#000000',
-              valid: function(v) { return v; }
-            });
-          } catch(e) {
-            // fallback: نص بديل إذا فشل الباركود
-            document.getElementById('_bc_svg').outerHTML =
-              '<div style="border:1px dashed #999;padding:4px;font-size:8px;text-align:center;">⚠️ باركود غير صالح</div>';
-          }
-        })();
-      </script>`;
+    const WM = size.w, HM = size.h;
+    const W  = mm2px(WM), H = mm2px(HM);
+    const P  = mm2px(0.9); // padding
+
+    // أحجام خطوط بالبكسل مناسبة لـ 203 DPI
+    const FB  = Math.max(8, Math.min(26, parseInt(fs) || 10));
+    const FST = Math.max(7,  FB - 2);  // اسم المتجر
+    const FSP = Math.max(8,  FB);      // اسم المنتج
+    const FSN = Math.max(6,  FB - 3);  // رقم الباركود
+    const FSR = Math.max(9,  FB + 2);  // السعر
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    let y = P;
+
+    // اسم المتجر
+    if (showStore === '1' && sName) {
+      ctx.font = `800 ${FST}px "${bcFont||'Arial'}", Arial, sans-serif`;
+      ctx.fillText(_clip(ctx, sName, W - P*2), W/2, y);
+      y += FST + Math.round(P * 0.35);
+    }
+
+    // اسم المنتج
+    if (showName !== '0') {
+      const pn = product.name + (product.size ? ` — ${product.size}` : '');
+      ctx.font = `900 ${FSP}px "${bcFont||'Arial'}", Arial, sans-serif`;
+      ctx.fillText(_clip(ctx, pn, W - P*2), W/2, y);
+      y += FSP + Math.round(P * 0.35);
+    }
+
+    // حساب الارتفاع المتاح للباركود
+    let bot = P;
+    bot += FSN + Math.round(P * 0.35);
+    if (showPrice !== '0') bot += FSR + Math.round(P * 0.35);
+
+    const bH = Math.max(mm2px(3.5), H - y - bot - P);
+    const bW = W - P * 2;
+
+    // رسم الباركود
+    if (bcType === 'QR') {
+      ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+      ctx.strokeRect(W/2 - bW/2, y, bW, bH);
+      ctx.font = `700 ${FSN}px monospace`;
+      ctx.fillText('[QR]', W/2, y + bH/2 - FSN/2);
+      y += bH + Math.round(P * 0.3);
+    } else {
+      const fmt = _fmt(bv);
+      const bc  = document.createElement('canvas');
+      let ok = false;
+      if (typeof JsBarcode !== 'undefined') {
+        try {
+          const xd = Math.max(1, Math.floor(bW / _units(bv, fmt)));
+          JsBarcode(bc, String(bv), {
+            format: fmt, width: xd, height: bH,
+            displayValue: false, margin: 0,
+            background: '#ffffff', lineColor: '#000000',
+          });
+          ok = true;
+        } catch(_) {}
+      }
+      if (ok && bc.width > 0) {
+        // drawImage يوسّع الباركود ليملأ bW × bH بالكامل
+        ctx.drawImage(bc, 0, 0, bc.width, bc.height, P, y, bW, bH);
+      } else {
+        _fallbackBars(ctx, P, y, bW, bH, bv);
+      }
+      y += bH + Math.round(P * 0.25);
+    }
+
+    // رقم الباركود
+    ctx.font = `700 ${FSN}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(bv, W/2, y);
+    y += FSN + Math.round(P * 0.35);
+
+    // السعر
+    if (showPrice !== '0') {
+      const pr = (typeof formatDZ === 'function')
+        ? formatDZ(product.sellPrice || 0)
+        : `${parseFloat(product.sellPrice||0).toFixed(2)} ${cur||'DA'}`;
+      ctx.font = `900 ${FSR}px "${bcFont||'Arial'}", Arial, sans-serif`;
+      ctx.fillText(pr, W/2, y);
+    }
+
+    return canvas;
   }
 
-  // ── بناء HTML الملصق الكامل ─────────────────────────────────
-  async function _buildLabelHTML(product, settings) {
-    const { sName, cur, bcFont, bcType, showStore, showName, showPrice, size, fs, bv } = settings;
-    const W = size.w;
-    const H = size.h;
-
-    // أحجام الخطوط النسبية
-    const fsStore = Math.max(5,  fs - 3);
-    const fsBc    = Math.max(5,  fs - 3);
-    const fsPrice = Math.max(8,  fs + 1);
-    const fsProd  = Math.max(6,  fs);
-
-    // حساب المساحة المتاحة للباركود بدقة
-    const LINE_H = 1.1; // معامل تحويل px → mm
-    let usedMM = 1.5; // padding عام
-    if (showStore === '1' && sName) usedMM += fsStore * LINE_H + 0.5;
-    if (showName  !== '0')          usedMM += fsProd  * LINE_H + 0.5;
-    usedMM += fsBc * LINE_H + 0.5; // رقم الباركود
-    if (showPrice !== '0')          usedMM += fsPrice * LINE_H + 0.5;
-
-    const barsH = Math.max(5, H - usedMM);
-
-    // اختيار نوع الباركود
-    const format = _detectFormat(bv);
-    const barcodeSection = bcType === 'QR'
-      ? `<div style="font-family:monospace;font-size:${fsBc}px;border:1px solid #000;padding:1px;display:inline-block;margin:1px auto;">[QR:${bv}]</div>`
-      : _buildBarcodeHTML(bv, W, barsH, format);
-
-    // تنسيق السعر
-    const priceStr = (typeof formatDZ === 'function')
-      ? formatDZ(product.sellPrice || 0)
-      : `${parseFloat(product.sellPrice || 0).toFixed(2)} ${cur || 'DA'}`;
-
-    const prodName = product.name + (product.size ? ` — ${product.size}` : '');
-
+  // ── تحويل Canvas إلى HTML جاهز للطباعة ───────────────────
+  // الحيلة الجوهرية: صورة PNG + أبعاد بالمم + لا margins
+  function _toHTML(canvas, wMM, hMM) {
+    const url = canvas.toDataURL('image/png', 1.0);
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<script src="${JSBARCODE_CDN}"></script>
 <style>
-  @page {
-    margin: 0 !important;
-    size: ${W}mm ${H}mm;
-    padding: 0 !important;
+  *{margin:0!important;padding:0!important;box-sizing:border-box;}
+  @page{
+    size:${wMM}mm ${hMM}mm!important;
+    margin:0mm!important;
   }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html, body {
-    width: ${W}mm;
-    height: ${H}mm;
-    max-width: ${W}mm;
-    max-height: ${H}mm;
-    overflow: hidden;
-    background: #fff;
-    color: #000;
+  html,body{
+    width:${wMM}mm!important;
+    height:${hMM}mm!important;
+    max-width:${wMM}mm!important;
+    max-height:${hMM}mm!important;
+    overflow:hidden!important;
+    background:#fff!important;
   }
-  body {
-    font-family: '${bcFont || 'Cairo'}', Arial, sans-serif;
-    text-align: center;
-    padding: 0.8mm 1mm;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .sn {
-    font-size: ${fsStore}px; font-weight: 800;
-    white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; width: 100%;
-    line-height: 1.1;
-  }
-  .pn {
-    font-size: ${fsProd}px; font-weight: 900;
-    white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; width: 100%;
-    line-height: 1.1;
-  }
-  .bc-num {
-    font-family: 'Courier New', monospace;
-    font-size: ${fsBc}px; font-weight: 700;
-    letter-spacing: 1px; direction: ltr;
-    line-height: 1.1;
-  }
-  .pr {
-    font-size: ${fsPrice}px; font-weight: 900;
-    direction: ltr; line-height: 1.1;
-  }
-  .bc-wrap {
-    width: 100%;
-    direction: ltr;
-    line-height: 0;
-  }
-  @media print {
-    html, body { width: ${W}mm !important; height: ${H}mm !important; }
-    * { color: #000 !important; }
+  img{
+    display:block!important;
+    width:${wMM}mm!important;
+    height:${hMM}mm!important;
+    max-width:${wMM}mm!important;
+    max-height:${hMM}mm!important;
+    object-fit:fill!important;
+    -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important;
   }
 </style>
 </head>
 <body>
-${showStore === '1' && sName ? `<div class="sn">${sName}</div>` : ''}
-${showName  !== '0'         ? `<div class="pn">${prodName}</div>` : ''}
-<div class="bc-wrap">${barcodeSection}</div>
-<div class="bc-num">${bv}</div>
-${showPrice !== '0'         ? `<div class="pr">${priceStr}</div>` : ''}
+<img src="${url}" alt=""/>
 </body>
 </html>`;
   }
 
-  // ── الدالة الرئيسية: طباعة ملصق ────────────────────────────
+  // ── الدالة الرئيسية ────────────────────────────────────────
   async function barcode(product, qty) {
     if (!product) return;
     const copies = Math.max(1, Math.min(999, parseInt(qty) || 1));
 
     const bv = (product.barcode || String(product.id || '')).trim();
     if (!bv) {
-      if (typeof toast === 'function') toast('لا يوجد رقم باركود للمنتج', 'warning');
+      if (typeof toast === 'function') toast('لا يوجد رقم باركود', 'warning');
       return;
     }
 
-    // جلب كل الإعدادات دفعة واحدة
-    const [sName, cur, bcFont, bcType, showStore, showName, showPrice, rawSize, rawFs] =
+    const [sName,cur,bcFont,bcType,showStore,showName,showPrice,rawSize,rawFs] =
       await Promise.all(['storeName','currency','barcodeFont','barcodeType',
         'barcodeShowStore','barcodeShowName','barcodeShowPrice',
-        'barcodeLabelSize','barcodeFontSize'].map(k => getSetting(k)));
+        'barcodeLabelSize','barcodeFontSize'].map(k=>getSetting(k)));
 
-    const size = SIZE_MAP[rawSize || '40x20'] || SIZE_MAP['40x20'];
-    const fs   = Math.max(6, Math.min(24, parseInt(rawFs) || 9));
+    const size = SIZE_MAP[rawSize||'40x20'] || SIZE_MAP['40x20'];
+    const fs   = Math.max(7, Math.min(24, parseInt(rawFs)||9));
 
-    const settings = { sName, cur, bcFont, bcType, showStore, showName, showPrice, size, fs, bv };
-    const labelHTML = await _buildLabelHTML(product, settings);
+    await _loadBC();
 
-    // طباعة N نسخة بتأخير 500ms بين كل نسخة
+    const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
+    const canvas = await _render(product, opts);
+    const html   = _toHTML(canvas, size.w, size.h);
+
     for (let i = 0; i < copies; i++) {
-      if (i > 0) await new Promise(r => setTimeout(r, 500));
-      await _printSmart(labelHTML, rawSize || '40x20');
+      if (i > 0) await new Promise(r => setTimeout(r, 600));
+      await _printSmart(html, rawSize||'40x20');
     }
-    if (copies > 1 && typeof toast === 'function') {
+    if (copies > 1 && typeof toast === 'function')
       toast(`🖨️ تمت طباعة ${copies} نسخة`, 'success');
-    }
   }
 
-  // ── محرك الطباعة الذكي ──────────────────────────────────────
+  // ── محرك الطباعة ──────────────────────────────────────────
   async function _printSmart(html, rawSize) {
     try {
       const syncEnabled = await getSetting('syncEnabled');
-      const serverIP    = await getSetting('syncServerIP')   || '192.168.1.1';
-      const serverPort  = await getSetting('syncServerPort') || '3000';
+      const serverIP    = await getSetting('syncServerIP')  || '192.168.1.1';
+      const serverPort  = await getSetting('syncServerPort')|| '3000';
       if (syncEnabled === '1') {
-        const printerName = await getSetting('printerBarcode') || '';
-        const resp = await fetch(`http://${serverIP}:${serverPort}/api/print`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html, printerName, labelSize: rawSize }),
-          signal: AbortSignal.timeout(6000)
+        const pName = await getSetting('printerBarcode') || '';
+        const r = await fetch(`http://${serverIP}:${serverPort}/api/print`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({html, printerName:pName, labelSize:rawSize}),
+          signal:AbortSignal.timeout(6000)
         });
-        if (resp.ok) {
-          const r = await resp.json();
-          if (r.status === 'ok') {
-            if (typeof toast === 'function') toast(`🖨️ جاري الطباعة على: ${r.printer}`, 'success');
+        if (r.ok) {
+          const j = await r.json();
+          if (j.status === 'ok') {
+            if (typeof toast === 'function') toast(`🖨️ طباعة على: ${j.printer}`,'success');
             return;
           }
         }
       }
-    } catch (_) { /* السيرفر غير متاح */ }
-    _iframePrint(html);
+    } catch(_) {}
+    _browserPrint(html);
   }
 
-  // ── طباعة عبر iframe صامت ───────────────────────────────────
-  function _iframePrint(html) {
-    const old = document.getElementById('_posdzBcFrame');
-    if (old) old.remove();
-
+  // ── طباعة عبر iframe مخفي ─────────────────────────────────
+  function _browserPrint(html) {
+    document.getElementById('_bcF')?.remove();
     const f = document.createElement('iframe');
-    f.id = '_posdzBcFrame';
-    f.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;';
+    f.id = '_bcF';
+    f.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
     document.body.appendChild(f);
-
     const doc = f.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    // انتظر تحميل JsBarcode قبل الطباعة
+    doc.open(); doc.write(html); doc.close();
     f.onload = () => {
-      // نعطي JsBarcode 800ms لرسم الباركود قبل الطباعة
       setTimeout(() => {
-        try {
-          f.contentWindow.focus();
-          f.contentWindow.print();
-        } catch(e) {
-          const w = window.open('', '_blank', 'width=400,height=300');
-          if (w) {
-            w.document.write(html);
-            w.document.close();
-            setTimeout(() => { w.print(); w.onafterprint = () => w.close(); }, 800);
-          }
+        try { f.contentWindow.focus(); f.contentWindow.print(); }
+        catch(e) {
+          const w = window.open('','_blank','width=500,height=400');
+          if (w) { w.document.write(html); w.document.close();
+            setTimeout(()=>{w.print();w.onafterprint=()=>w.close();},200); }
         }
-        setTimeout(() => { if (f.parentNode) f.remove(); }, 8000);
-      }, 800);
+        setTimeout(()=>{ f.parentNode&&f.remove(); },10000);
+      }, 200);
     };
   }
 
-  // ── اختيار الطابعة من قائمة حقيقية ─────────────────────────
-  // يسأل السيرفر عن قائمة الطابعات المثبتة على الجهاز
+  // ── اختيار الطابعة ────────────────────────────────────────
   async function choosePrinter(type) {
-    const isBarcode = type === 'barcode';
-    const settingKey = isBarcode ? 'printerBarcode' : 'printerInvoice';
-
-    // محاولة جلب قائمة الطابعات من السيرفر
+    const isBc = type === 'barcode';
+    const key  = isBc ? 'printerBarcode' : 'printerInvoice';
+    const cur  = (await getSetting(key)) || '';
     let printers = [];
     try {
-      const syncEnabled = await getSetting('syncEnabled');
-      const serverIP    = await getSetting('syncServerIP')   || '192.168.1.1';
-      const serverPort  = await getSetting('syncServerPort') || '3000';
-      if (syncEnabled === '1') {
-        const resp = await fetch(
-          `http://${serverIP}:${serverPort}/api/printers`,
-          { signal: AbortSignal.timeout(4000) }
-        );
-        if (resp.ok) {
-          const data = await resp.json();
-          printers = data.printers || [];
-        }
+      const en  = await getSetting('syncEnabled');
+      const ip  = await getSetting('syncServerIP')  || '192.168.1.1';
+      const pt  = await getSetting('syncServerPort')|| '3000';
+      if (en === '1') {
+        const r = await fetch(`http://${ip}:${pt}/api/printers`,{signal:AbortSignal.timeout(4000)});
+        if (r.ok) printers = (await r.json()).printers || [];
       }
     } catch(_) {}
 
-    const currentName = await getSetting(settingKey) || '';
-
     if (printers.length > 0) {
-      // عرض قائمة حقيقية
-      _showPrinterModal(printers, currentName, settingKey, isBarcode);
+      _printerModal(printers, cur, key, isBc);
     } else {
-      // السيرفر غير متاح — طباعة تجريبية ثم إدخال يدوي
-      _fallbackPrinterDialog(type, settingKey, currentName, isBarcode);
+      if (typeof _inputDialog === 'function') {
+        const v = await _inputDialog(isBc?'اسم طابعة الباركود:':'اسم طابعة الفواتير:', cur);
+        if (v?.trim()) {
+          await setSetting(key, v.trim());
+          _updUI(isBc, v.trim());
+          if (typeof toast === 'function') toast(`✅ تم حفظ: ${v.trim()}`,'success');
+        }
+      } else {
+        if (typeof toast === 'function') toast('⚠️ شغّل السيرفر لجلب قائمة الطابعات','warning');
+      }
     }
   }
 
-  // ── مودال اختيار الطابعة (قائمة حقيقية) ────────────────────
-  function _showPrinterModal(printers, currentName, settingKey, isBarcode) {
-    // إزالة مودال قديم إن وجد
-    document.getElementById('_printerModal')?.remove();
-
-    const modal = document.createElement('div');
-    modal.id = '_printerModal';
-    modal.style.cssText = `
-      position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);
-      display:flex;align-items:center;justify-content:center;padding:16px;
-    `;
-
-    const title = isBarcode ? '🖨️ اختيار طابعة الباركود' : '🖨️ اختيار طابعة الفواتير';
-
-    const listHTML = printers.map((p, i) => {
-      const isSelected = p === currentName;
-      return `<div class="_pitem" data-name="${p}"
-        style="padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:6px;
-               border:2px solid ${isSelected ? '#7c3aed' : '#333'};
-               background:${isSelected ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.05)'};
-               color:#fff;font-size:0.9rem;display:flex;align-items:center;gap:10px;
-               transition:all 0.15s;"
-        onmouseover="this.style.borderColor='#7c3aed';this.style.background='rgba(124,58,237,0.1)'"
-        onmouseout="this.style.borderColor='${isSelected ? '#7c3aed' : '#333'}';this.style.background='${isSelected ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.05)'}'">
-        <span style="font-size:1.2rem;">${isSelected ? '✅' : '🖨️'}</span>
-        <span>${p}</span>
-      </div>`;
-    }).join('');
-
-    modal.innerHTML = `
-      <div style="background:#1a1040;border:1px solid #7c3aed;border-radius:14px;
-                  padding:20px;width:100%;max-width:420px;max-height:80vh;
-                  overflow-y:auto;box-shadow:0 0 40px rgba(124,58,237,0.4);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-          <h3 style="color:#a78bfa;font-size:1rem;font-weight:800;">${title}</h3>
-          <button onclick="document.getElementById('_printerModal').remove()"
-            style="background:transparent;border:none;color:#888;font-size:1.3rem;cursor:pointer;">✕</button>
+  function _printerModal(printers, current, key, isBc) {
+    document.getElementById('_pModal')?.remove();
+    const m = document.createElement('div');
+    m.id = '_pModal';
+    m.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:16px;';
+    m.innerHTML = `
+      <div style="background:#1a1040;border:2px solid #7c3aed;border-radius:14px;padding:20px;width:100%;max-width:400px;max-height:75vh;overflow-y:auto;box-shadow:0 0 50px rgba(124,58,237,0.5);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <h3 style="color:#a78bfa;font-size:0.95rem;font-weight:800;">🖨️ ${isBc?'طابعة الباركود':'طابعة الفواتير'}</h3>
+          <button onclick="document.getElementById('_pModal').remove()" style="background:transparent;border:none;color:#888;font-size:1.3rem;cursor:pointer;">✕</button>
         </div>
-        <p style="color:#888;font-size:0.8rem;margin-bottom:12px;">
-          اختر الطابعة من القائمة — ${printers.length} طابعة متاحة
-        </p>
-        <div id="_printerList">${listHTML}</div>
-        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
-          <button id="_printerConfirmBtn"
-            style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;
-                   border:none;border-radius:8px;padding:9px 20px;
-                   font-size:0.9rem;font-weight:700;cursor:pointer;opacity:0.5;"
-            disabled>✅ تأكيد الاختيار</button>
+        <div id="_pList">
+          ${printers.map(p=>`
+            <div class="_pi" data-n="${p}" style="padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:6px;border:2px solid ${p===current?'#7c3aed':'#2d1b69'};background:${p===current?'rgba(124,58,237,0.2)':'rgba(255,255,255,0.04)'};color:#e2e8f0;font-size:0.88rem;display:flex;align-items:center;gap:10px;transition:all 0.15s;">
+              <span>${p===current?'✅':'🖨️'}</span><span>${p}</span>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:14px;text-align:left;">
+          <button id="_pOk" disabled style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;border-radius:8px;padding:9px 22px;font-size:0.9rem;font-weight:700;cursor:pointer;opacity:0.45;transition:opacity 0.2s;">✅ تأكيد</button>
         </div>
       </div>`;
-
-    document.body.appendChild(modal);
-
-    // تفعيل الاختيار
-    let chosen = currentName;
-    modal.querySelectorAll('._pitem').forEach(item => {
-      item.addEventListener('click', () => {
-        chosen = item.dataset.name;
-        modal.querySelectorAll('._pitem').forEach(el => {
-          el.style.borderColor = '#333';
-          el.style.background  = 'rgba(255,255,255,0.05)';
-          el.querySelector('span').textContent = '🖨️';
-        });
-        item.style.borderColor = '#7c3aed';
-        item.style.background  = 'rgba(124,58,237,0.15)';
-        item.querySelector('span').textContent = '✅';
-        const btn = document.getElementById('_printerConfirmBtn');
-        btn.disabled = false;
-        btn.style.opacity = '1';
+    document.body.appendChild(m);
+    let chosen = current;
+    m.querySelectorAll('._pi').forEach(el=>{
+      el.addEventListener('click',()=>{
+        chosen = el.dataset.n;
+        m.querySelectorAll('._pi').forEach(x=>{x.style.borderColor='#2d1b69';x.style.background='rgba(255,255,255,0.04)';x.querySelector('span').textContent='🖨️';});
+        el.style.borderColor='#7c3aed';el.style.background='rgba(124,58,237,0.2)';el.querySelector('span').textContent='✅';
+        const b=document.getElementById('_pOk');b.disabled=false;b.style.opacity='1';
       });
     });
-
-    document.getElementById('_printerConfirmBtn').addEventListener('click', async () => {
-      if (!chosen) return;
-      await setSetting(settingKey, chosen);
-      // تحديث الواجهة في settings.html إذا كانت مفتوحة
-      const nameKey = isBarcode ? 'printerBarcodeName' : 'printerInvoiceName';
-      const cardKey = isBarcode ? 'printerBarcodeCard' : 'printerInvoiceCard';
-      document.getElementById(nameKey)?.setAttribute !== undefined &&
-        (document.getElementById(nameKey).textContent = chosen);
-      document.getElementById(cardKey)?.classList.add('selected');
-      modal.remove();
-      if (typeof toast === 'function') toast(`✅ تم اختيار: ${chosen}`, 'success');
+    document.getElementById('_pOk').addEventListener('click',async()=>{
+      await setSetting(key,chosen);_updUI(isBc,chosen);m.remove();
+      if(typeof toast==='function') toast(`✅ تم اختيار: ${chosen}`,'success');
     });
-
-    // إغلاق بالضغط خارجه
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    m.addEventListener('click',e=>{if(e.target===m)m.remove();});
   }
 
-  // ── Fallback: طباعة تجريبية + إدخال يدوي ───────────────────
-  function _fallbackPrinterDialog(type, settingKey, currentName, isBarcode) {
-    const label = isBarcode
-      ? 'اكتب اسم طابعة الباركود يدوياً:'
-      : 'اكتب اسم طابعة الفواتير يدوياً:';
-
-    // طباعة اختبارية أولاً
-    const testHTML = `<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8">
-      <style>
-        @page { size: ${isBarcode ? '40mm 20mm' : '80mm auto'}; margin:2mm; }
-        body { font-family:Arial; text-align:center; font-size:${isBarcode ? '9' : '12'}px; }
-      </style>
-      </head><body>
-      <b>POS DZ — اختبار طابعة</b><br/>
-      ${isBarcode ? '<small>ملصق الباركود</small>' : '<small>فاتورة اختبارية</small>'}
-      </body></html>`;
-
-    const w = window.open('', '_blank', 'width=400,height=300,scrollbars=no');
-    if (!w) {
-      if (typeof toast === 'function') toast('⚠️ أجِز النوافذ المنبثقة', 'warning');
-      return;
-    }
-    w.document.write(testHTML);
-    w.document.close();
-
-    let asked = false;
-    const ask = async () => {
-      if (asked) return;
-      asked = true;
-      try { w.close(); } catch(_) {}
-      if (typeof _inputDialog === 'function') {
-        const chosen = await _inputDialog(label, currentName || '');
-        if (chosen?.trim()) {
-          await setSetting(settingKey, chosen.trim());
-          const nameKey = isBarcode ? 'printerBarcodeName' : 'printerInvoiceName';
-          document.getElementById(nameKey) &&
-            (document.getElementById(nameKey).textContent = chosen.trim());
-          if (typeof toast === 'function') toast(`✅ تم حفظ: ${chosen.trim()}`, 'success');
-        }
-      }
-    };
-
-    w.onload = () => {
-      setTimeout(() => {
-        try { w.focus(); w.print(); } catch(_) {}
-        w.onafterprint = ask;
-        setTimeout(ask, 8000);
-      }, 300);
-    };
+  function _updUI(isBc, name) {
+    const n = document.getElementById(isBc?'printerBarcodeName':'printerInvoiceName');
+    const c = document.getElementById(isBc?'printerBarcodeCard':'printerInvoiceCard');
+    if(n) n.textContent = name;
+    if(c) c.classList.add('selected');
   }
 
-  // API العامة
   return { barcode, choosePrinter, SIZE_MAP };
 
 })();
