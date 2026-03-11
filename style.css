@@ -270,13 +270,13 @@ input,select,textarea,button {
 /* Back button */
 .back-btn {
   display:inline-flex; align-items:center; gap:7px;
-  background:var(--bg-card); border:1px solid var(--border);
-  color:var(--text-primary); padding:7px 14px;
-  border-radius:var(--radius-sm); cursor:pointer;
-  font-family:var(--font-main); font-size:0.9rem; font-weight:600;
-  transition:var(--transition); text-decoration:none;
+  background:transparent; border:none;
+  color:var(--text-secondary); padding:8px;
+  border-radius:8px; cursor:pointer;
+  font-family:var(--font-main); font-size:1.2rem; font-weight:600;
+  transition:all 0.2s; text-decoration:none; line-height:1;
 }
-.back-btn:hover { background:var(--primary); border-color:var(--primary); color:#fff; }
+.back-btn:hover { color:var(--primary); background:rgba(124,58,237,0.08); }
 
 /* Notification bell */
 .notif-bell {
