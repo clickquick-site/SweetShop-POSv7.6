@@ -315,6 +315,112 @@ app.post('/api/daily-report', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════
+//  API: قائمة الطابعات المثبتة على الجهاز
+// ════════════════════════════════════════════════════════════
+app.get('/api/printers', async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    let printers = [];
+
+    if (process.platform === 'win32') {
+      // Windows: PowerShell — يجلب أسماء الطابعات الحقيقية
+      const out = execSync(
+        'powershell -NoProfile -Command "Get-Printer | Select-Object -ExpandProperty Name"',
+        { encoding: 'utf8', timeout: 5000 }
+      );
+      printers = out.split('\n').map(s => s.trim()).filter(Boolean);
+
+    } else if (process.platform === 'linux') {
+      // Linux: lpstat
+      try {
+        const out = execSync('lpstat -a 2>/dev/null', { encoding: 'utf8', timeout: 3000 });
+        printers = out.split('\n')
+          .map(l => l.split(' ')[0].trim())
+          .filter(Boolean);
+      } catch(_) {
+        const out2 = execSync('lpstat -p 2>/dev/null | grep "^printer"', { encoding: 'utf8', timeout: 3000 });
+        printers = out2.split('\n').map(l => l.split(' ')[1]?.trim()).filter(Boolean);
+      }
+
+    } else if (process.platform === 'darwin') {
+      // macOS
+      const out = execSync('lpstat -p 2>/dev/null', { encoding: 'utf8', timeout: 3000 });
+      printers = out.split('\n')
+        .filter(l => l.startsWith('printer'))
+        .map(l => l.split(' ')[1]?.trim())
+        .filter(Boolean);
+    }
+
+    log('PRINTERS', `تم جلب ${printers.length} طابعة`);
+    res.json({ status: 'ok', printers });
+  } catch(e) {
+    log('PRINTERS', `خطأ: ${e.message}`);
+    res.json({ status: 'ok', printers: [] });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  API: طباعة ملصق الباركود
+//  يستقبل HTML ويطبعه على الطابعة المحددة
+// ════════════════════════════════════════════════════════════
+app.post('/api/print', async (req, res) => {
+  const { html, printerName, labelSize } = req.body;
+  if (!html) return res.status(400).json({ error: 'missing_html' });
+
+  try {
+    const { execSync, exec } = require('child_process');
+    const os   = require('os');
+    const tmpF = path.join(os.tmpdir(), `posdz_label_${Date.now()}.html`);
+    fs.writeFileSync(tmpF, html, 'utf8');
+
+    // اختيار الطابعة: المحددة أو الافتراضية
+    const printer = (printerName && printerName !== 'الطابعة الافتراضية')
+      ? printerName : '';
+
+    let cmd = '';
+
+    if (process.platform === 'win32') {
+      // Windows: SumatraPDF (الأفضل للطباعة الصامتة) أو mshta
+      const sumatra = 'C:\\Program Files\\SumatraPDF\\SumatraPDF.exe';
+      if (fs.existsSync(sumatra)) {
+        const pFlag = printer ? `-print-to "${printer}"` : '-print-to-default';
+        cmd = `"${sumatra}" ${pFlag} -silent "${tmpF}"`;
+      } else {
+        // Fallback: PowerShell + IE print
+        const pArg = printer ? `-Printer "${printer}"` : '';
+        cmd = `powershell -NoProfile -Command "Start-Process '${tmpF}' -Verb Print ${pArg} -Wait"`;
+      }
+
+    } else if (process.platform === 'linux') {
+      const pFlag = printer ? `-d "${printer}"` : '';
+      cmd = `lpr ${pFlag} "${tmpF}"`;
+
+    } else if (process.platform === 'darwin') {
+      const pFlag = printer ? `-d "${printer}"` : '';
+      cmd = `lpr ${pFlag} "${tmpF}"`;
+    }
+
+    if (cmd) {
+      exec(cmd, { timeout: 15000 }, (err) => {
+        setTimeout(() => { try { fs.unlinkSync(tmpF); } catch(_) {} }, 10000);
+        if (err) {
+          log('PRINT', `تحذير: ${err.message}`);
+        }
+      });
+      const usedPrinter = printer || 'الطابعة الافتراضية';
+      log('PRINT', `✅ أُرسل للطابعة: ${usedPrinter} | حجم: ${labelSize || '?'}`);
+      res.json({ status: 'ok', printer: usedPrinter });
+    } else {
+      res.status(503).json({ error: 'unsupported_platform' });
+    }
+
+  } catch(e) {
+    log('PRINT', `خطأ: ${e.message}`);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
 //  تشغيل السيرفر
 // ════════════════════════════════════════════════════════════
 app.listen(PORT, '0.0.0.0', () => {
