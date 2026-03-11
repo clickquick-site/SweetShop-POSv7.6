@@ -49,8 +49,9 @@ const POSDZ_PRINT = (() => {
   }
 
   // ── طباعة ملصق باركود ─────────────────────────────────────────────
-  async function barcode(product) {
+  async function barcode(product, qty) {
     if (!product) return;
+    const copies = Math.max(1, Math.min(999, parseInt(qty) || 1));
 
     const bv = (product.barcode || String(product.id || '')).trim();
     if (!bv) { if (typeof toast === 'function') toast('لا يوجد رقم باركود للمنتج', 'warning'); return; }
@@ -155,7 +156,14 @@ ${showPrice !== '0'          ? `<div class="pr">${priceStr}</div>` : ''}
 </html>`;
 
     // طباعة عبر السيرفر إن توفر — وإلا iframe صامت
-    await _printBarcodeSmart(labelHTML, rawSize || '58x38');
+    // طباعة N نسخة — تأخير 400ms بين كل نسخة لمنع تداخل الطباعة
+    for (let i = 0; i < copies; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 400));
+      await _printBarcodeSmart(labelHTML, rawSize || '58x38');
+    }
+    if (copies > 1 && typeof toast === 'function') {
+      toast(`🖨️ تمت طباعة ${copies} نسخة`, 'success');
+    }
   }
 
   // ── محرك الطباعة — يحاول السيرفر أولاً ثم iframe ────────────────
