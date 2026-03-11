@@ -69,7 +69,7 @@
   </header>
   <div class="main-content">
     <div class="section-header">
-      <a href="sale.html" class="back-btn" id="backBtn">← رجوع</a>
+      <a href="sale.html" class="back-btn" id="backBtn"><i class="fa-solid fa-arrow-right"></i></a>
       <h2 class="page-title" id="pageTitle">⚙️ الإعدادات العامة</h2>
     </div>
 
@@ -968,7 +968,7 @@ const I18N = {
     pageTitle:'⚙️ الإعدادات العامة',
     tabBtnProgram:'💻 البرنامج', tabBtnStore:'🏪 المتجر', tabBtnPrint:'🖨️ الطباعة',
     tabBtnSystem:'🔧 النظام', tabBtnNotifs:'🔔 الإشعارات', tabBtnAbout:'ℹ️ حول',
-    backBtn:'← رجوع', saveBtn:'💾 حفظ البيانات',
+    backBtn:'<i class="fa-solid fa-arrow-right"></i>', saveBtn:'💾 حفظ البيانات',
     labelDate:'📅 صيغة التاريخ', labelCurrency:'💰 رمز العملة',
     labelLang:'🌐 لغة البرنامج', labelLangDesc:'تطبيق فوري على كل صفحات التطبيق',
     labelFont:'🔤 خط التطبيق', labelFontSize:'🔡 حجم الخط',
@@ -1047,7 +1047,7 @@ function applyTranslation(lang) {
   const pageTitle = document.getElementById('pageTitle');
   if (pageTitle) pageTitle.textContent = t.pageTitle || t.settGeneral || '';
   const backBtn = document.getElementById('backBtn');
-  if (backBtn) backBtn.textContent = t.backBtn || t.btnBack || '← رجوع';
+  if (backBtn) backBtn.textContent = t.backBtn || t.btnBack || '<i class="fa-solid fa-arrow-right"></i>';
 
   // Tab buttons
   ['tabBtnProgram','tabBtnStore','tabBtnPrint','tabBtnSystem','tabBtnNotifs','tabBtnAbout'].forEach(id => {
