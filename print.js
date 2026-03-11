@@ -176,7 +176,22 @@ const POSDZ_PRINT = (() => {
       ctx.fillText(pr, W/2, y);
     }
 
-    return cv;
+    // ── تدوير الملصق 90° مع عقارب الساعة ───────────────────
+    // الطابعة الحرارية تسحب الورق عمودياً (portrait)
+    // نُدوّر المحتوى 90° CW ونُصرّح لـ @page بأبعاد portrait
+    // حتى لا تُضيف الطابعة تدويراً إضافياً
+    const rotated = document.createElement('canvas');
+    rotated.width  = H;   // العرض الجديد = ارتفاع الأصل
+    rotated.height = W;   // الارتفاع الجديد = عرض الأصل
+    const rctx = rotated.getContext('2d');
+    rctx.fillStyle = '#fff';
+    rctx.fillRect(0, 0, rotated.width, rotated.height);
+    // 90° مع عقارب الساعة: translate(H, 0) ثم rotate(+90°)
+    rctx.translate(H, 0);
+    rctx.rotate(Math.PI / 2);
+    rctx.drawImage(cv, 0, 0);
+
+    return rotated;
   }
 
   // ── بناء HTML الطباعة ──────────────────────────────────────
@@ -288,7 +303,8 @@ const POSDZ_PRINT = (() => {
 
     const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
     const canvas = await _drawLabel(product, opts);
-    const html   = _makeHTML(canvas, size.w, size.h);
+    // الصورة مُدوّرة 90° CW → نُمرّر أبعاد portrait (h×w) لـ @page
+    const html   = _makeHTML(canvas, size.h, size.w);
 
     for (let i=0; i<copies; i++) {
       if (i>0) await new Promise(r => setTimeout(r, 700));
