@@ -668,14 +668,14 @@
       <a class="nav-item" href="customers.html"><span class="nav-label" data-i18n="navCustomers">الزبائن</span></a>
       <a class="nav-item active" href="reports.html" data-role="admin,manager"><span class="nav-label" data-i18n="navReports">إدارة الأعمال</span></a>
       <a class="nav-item" href="suppliers.html" data-role="admin,manager"><span class="nav-label" data-i18n="navSuppliers">الموردون</span></a>
-      <a class="nav-item" href="expenses.html" data-role="admin,manager"><span class="nav-label" data-i18n="navExpenses">المصاريف والعمال</span></a>
+      <a class="nav-item" href="expenses.html" data-role="admin,manager"><span class="nav-label">المصاريف والعمال</span></a>
       <span class="nav-group-label" data-i18n="navGroupSystem">النظام</span>
       <a class="nav-item" href="users.html" data-role="admin"><span class="nav-label" data-i18n="navUsers">المستخدمون</span></a>
       <a class="nav-item" href="settings.html" data-role="admin,manager"><span class="nav-label" data-i18n="navSettings">الإعدادات</span></a>
 
       <div class="nav-item danger" onclick="doLogout()"><span class="nav-label" data-i18n="navLogout">خروج</span></div>
     </nav>
-    <div class="sidebar-footer"><span id="sidebarVersion">v7.0.0</span><span>POS DZ 2026</span></div>
+    <div class="sidebar-footer"><span id="sidebarVersion">v6.0.0</span><span>POS DZ 2026</span></div>
   </div>
 
       <!-- ════ ACCOUNTING PANEL ════ -->
@@ -849,7 +849,7 @@ async function loadAccounting() {
   const debtTotal   = debts.filter(d => !d.isPaid).reduce((s, d) => s + parseFloat(d.amount||0), 0);
 
   const cur = await getSetting('currency') || 'DA';
-  const fmt = v => parseFloat(v).toFixed(2) + ' ' + cur;
+  const fmt = v => formatDZ(v);
 
   document.getElementById('accRevenue')?.setAttribute('data-val', fmt(revenue));
   document.getElementById('accCost')?.setAttribute('data-val', fmt(cost));
@@ -874,7 +874,7 @@ async function loadAccounting() {
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;">
       <span style="font-weight:700;color:var(--primary-light);flex:1;">${e.category}</span>
       <span style="color:var(--text-secondary);font-size:0.82rem;flex:2;">${e.note||''}</span>
-      <span style="font-weight:900;color:var(--danger);">- ${parseFloat(e.amount).toFixed(2)} ${cur}</span>
+      <span style="font-weight:900;color:var(--danger);">- ${formatDZ(e.amount)}</span>
       <button class="btn btn-sm btn-danger" onclick="deleteAccountingExpense(${e.id})">🗑️</button>
     </div>`).join('');
 }
@@ -1012,7 +1012,7 @@ async function updateSidebarValues() {
   const yestGross   = yestCashIn - costYest;
   const yestNet     = yestGross - yestExp;
 
-  const fmt = v => v.toFixed(2) + ' ' + currency;
+  const fmt = v => formatDZ(v);
   const set = (id, val) => { const el=document.getElementById(id); if(el) el.textContent=val; };
 
   // ── تحديث KPI اليومي ──
@@ -1108,7 +1108,7 @@ async function updatePeriodSummary() {
 
   const gross  = totalRevenue - totalCost;
   const net    = gross - totalExp;
-  const fmt    = v => (v<0?'−':'')+Math.abs(v).toFixed(2)+' '+currency;
+  const fmt    = v => formatDZ(v);
 
   const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
   set('pMadakhil', fmt(totalRevenue));
@@ -1214,12 +1214,12 @@ function updateTicker(cash, invoices, debts, lowStock, net) {
   const totalDebtAll = allDebtsDB.filter(d=>!d.isPaid).reduce((s,d)=>s+d.amount,0);
 
   const items = [
-    `<span class="ticker-item ticker-up">💰 نقد اليوم: ${cash.toFixed(2)} ${currency} <span class="${deltaClass}">${deltaStr}</span></span>`,
+    `<span class="ticker-item ticker-up">💰 نقد اليوم: ${formatDZ(cash)} <span class="${deltaClass}">${deltaStr}</span></span>`,
     `<span class="ticker-item ticker-flat">🧾 فواتير: ${invoices}</span>`,
-    `<span class="ticker-item ${debts>0?'ticker-down':'ticker-up'}">💳 ديون اليوم: ${debts.toFixed(2)} ${currency}</span>`,
-    `<span class="ticker-item ${net>=0?'ticker-up':'ticker-down'}">🏦 الصافي: ${net.toFixed(2)} ${currency}</span>`,
+    `<span class="ticker-item ${debts>0?'ticker-down':'ticker-up'}">💳 ديون اليوم: ${formatDZ(debts)}</span>`,
+    `<span class="ticker-item ${net>=0?'ticker-up':'ticker-down'}">🏦 الصافي: ${formatDZ(net)}</span>`,
     `<span class="ticker-item ${lowStock>0?'ticker-down':'ticker-up'}">📦 منتجات ناقصة: ${lowStock > 0 ? lowStock : 'لا شيء ✅'}</span>`,
-    `<span class="ticker-item ticker-down">📋 إجمالي الديون القائمة: ${totalDebtAll.toFixed(2)} ${currency}</span>`,
+    `<span class="ticker-item ticker-down">📋 إجمالي الديون القائمة: ${formatDZ(totalDebtAll)}</span>`,
     topProduct ? `<span class="ticker-item ticker-flat">🏆 أكثر مخزوناً: ${topProduct.name} (${topProduct.quantity})</span>` : '',
     `<span class="ticker-item ticker-flat">🕐 ${new Date().toLocaleTimeString('ar-DZ')}</span>`,
   ].filter(Boolean).join('');
@@ -1461,7 +1461,7 @@ async function loadDailyPanel() {
   const isToday = date === todayStr();
   const sales = allSales.filter(s => !s.isCancelled && s.date.startsWith(date)).sort((a,b)=>a.invoiceNumber?.localeCompare(b.invoiceNumber));
   const total = sales.filter(s=>!s.isDebt).reduce((s,x)=>s+x.total,0);
-  document.getElementById('dailyTotalVal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('dailyTotalVal').textContent = formatDZ(total);
 
   // ── قراءة سجل المصاريف والرواتب من pos_dailyEntries ──
   let dailyEntries = [];
@@ -1490,7 +1490,7 @@ async function loadDailyPanel() {
       <td><b>${s.invoiceNumber||'—'}</b></td>
       <td>${formatTime(s.date)}</td>
       <td>${customer ? customer.name : '—'}</td>
-      <td><b>${s.total.toFixed(2)} ${currency}</b></td>
+      <td><b>${formatDZ(s.total)}</b></td>
       <td>${badge}</td>
       <td class="actions">
         <button class="btn btn-sm btn-secondary" onclick="reprrintSaleR(${s.id})" title="طباعة">🖨️</button>
@@ -1511,7 +1511,7 @@ async function loadDailyPanel() {
       <td style="color:var(--text-secondary);font-size:0.8rem;">${icon}</td>
       <td style="font-size:0.78rem;color:var(--text-secondary);">${timeStr}</td>
       <td style="font-size:0.85rem;color:var(--text-primary);">${e.label}</td>
-      <td style="font-weight:900;color:#ef4444;">- ${parseFloat(e.amount).toFixed(2)} ${currency}</td>
+      <td style="font-weight:900;color:#ef4444;">- ${formatDZ(e.amount)}</td>
       <td>${badge}</td>
       <td></td>
     </tr>`;
@@ -1521,7 +1521,7 @@ async function loadDailyPanel() {
   const entriesSummary = dailyEntries.length
     ? `<tr style="background:rgba(239,68,68,0.08);border-top:2px solid rgba(239,68,68,0.2);">
         <td colspan="3" style="font-weight:800;color:#ef4444;font-size:0.85rem;">📊 إجمالي الخصومات (مصاريف + رواتب)</td>
-        <td style="font-weight:900;color:#ef4444;">- ${entriesTotal.toFixed(2)} ${currency}</td>
+        <td style="font-weight:900;color:#ef4444;">- ${formatDZ(entriesTotal)}</td>
         <td colspan="2"></td>
       </tr>`
     : '';
@@ -1530,7 +1530,7 @@ async function loadDailyPanel() {
     <div class="inv-table-wrap">
       <div class="inv-table-header">
         <span class="text-muted" style="font-size:0.85rem;">${sales.length} فاتورة${dailyEntries.length ? ' + ' + dailyEntries.length + ' خصم' : ''}</span>
-        <span style="color:var(--success);font-weight:700;">نقداً: ${total.toFixed(2)} ${currency}${entriesTotal > 0 ? ' | خصومات: ' + entriesTotal.toFixed(2) + ' ' + currency : ''}</span>
+        <span style="color:var(--success);font-weight:700;">نقداً: ${formatDZ(total)}${entriesTotal > 0 ? ' | خصومات: ' + formatDZ(entriesTotal) : ''}</span>
       </div>
       <table class="data-table">
         <thead><tr><th>الفاتورة</th><th>الوقت</th><th>الزبون / التفصيل</th><th>المبلغ</th><th>الحالة</th><th>إجراءات</th></tr></thead>
@@ -1594,7 +1594,7 @@ async function loadDebtsPanel() {
   const date   = document.getElementById('debtsDate')?.value || todayStr();
   const debts  = allDebtsDB.filter(d => d.date.startsWith(date));
   const total  = debts.reduce((s, d) => s + d.amount, 0);
-  document.getElementById('debtsTotalVal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('debtsTotalVal').textContent = formatDZ(total);
 
   if (!debts.length) {
     document.getElementById('debtsListWrap').innerHTML = '<div class="empty-state"><div class="empty-icon">💳</div><p>لا توجد ديون في هذا اليوم</p></div>';
@@ -1611,8 +1611,8 @@ async function loadDebtsPanel() {
       <td><b>${c ? c.name : '—'}</b></td>
       <td>${c ? c.phone : '—'}</td>
       <td>${sale ? sale.invoiceNumber : '—'}</td>
-      <td style="color:var(--danger);font-weight:700;">${(d.originalAmount||d.amount).toFixed(2)} ${currency}</td>
-      <td style="color:${d.amount < (d.originalAmount||d.amount) ? 'var(--warning)' : 'var(--danger)'};font-weight:700;">${d.amount.toFixed(2)} ${currency}${d.amount < (d.originalAmount||d.amount) ? ' <span style="font-size:0.7rem;color:var(--success)">جزئي</span>' : ''}</td>
+      <td style="color:var(--danger);font-weight:700;">${formatDZ((d.originalAmount||d.amount))}</td>
+      <td style="color:${d.amount < (d.originalAmount||d.amount) ? 'var(--warning)' : 'var(--danger)'};font-weight:700;">${formatDZ(d.amount)}${d.amount < (d.originalAmount||d.amount) ? ' <span style="font-size:0.7rem;color:var(--success)">جزئي</span>' : ''}</td>
       <td>${badge}</td>
       <td class="actions">
         <a href="customers.html" class="btn btn-sm btn-primary" title="إدارة الزبون">👤</a>
@@ -1625,7 +1625,7 @@ async function loadDebtsPanel() {
     <div class="inv-table-wrap">
       <div class="inv-table-header">
         <span class="text-muted" style="font-size:0.85rem;">${debts.length} دين</span>
-        <span style="color:var(--danger);font-weight:700;">المتبقي: ${total.toFixed(2)} ${currency}</span>
+        <span style="color:var(--danger);font-weight:700;">المتبقي: ${formatDZ(total)}</span>
       </div>
       <table class="data-table">
         <thead><tr><th>الزبون</th><th>الهاتف</th><th>فاتورة</th><th>الأصلي</th><th>المتبقي</th><th>الحالة</th><th>إجراءات</th></tr></thead>
@@ -1654,7 +1654,7 @@ async function loadFamiliesPanel() {
   });
 
   const total = Object.values(famMap).reduce((s, f) => s + f.total, 0);
-  document.getElementById('familiesTotalVal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('familiesTotalVal').textContent = formatDZ(total);
 
   const entries = Object.entries(famMap).sort((a,b) => b[1].total - a[1].total);
   if (!entries.length) {
@@ -1668,7 +1668,7 @@ async function loadFamiliesPanel() {
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span style="font-weight:700;color:var(--text-primary);">${name}</span>
-            <span style="color:var(--primary-light);font-weight:900;">${d.total.toFixed(2)} ${currency}</span>
+            <span style="color:var(--primary-light);font-weight:900;">${formatDZ(d.total)}</span>
           </div>
           <div style="height:8px;background:var(--bg-dark);border-radius:4px;overflow:hidden;">
             <div style="height:100%;width:${(d.total/maxTotal*100).toFixed(0)}%;background:${PIE_COLORS[i%PIE_COLORS.length]};border-radius:4px;transition:width 0.5s;"></div>
@@ -1696,7 +1696,7 @@ async function loadProductsPanel() {
   });
 
   const total = Object.values(prodMap).reduce((s, p) => s + p.total, 0);
-  document.getElementById('productsTotalVal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('productsTotalVal').textContent = formatDZ(total);
 
   const entries = Object.entries(prodMap).sort((a,b) => b[1].total - a[1].total);
   if (!entries.length) {
@@ -1713,14 +1713,14 @@ async function loadProductsPanel() {
               <td style="color:var(--text-secondary);font-size:0.82rem;">${i+1}</td>
               <td><b>${name}</b></td>
               <td>${d.qty}</td>
-              <td style="color:var(--primary-light);font-weight:700;">${d.total.toFixed(2)} ${currency}</td>
+              <td style="color:var(--primary-light);font-weight:700;">${formatDZ(d.total)}</td>
             </tr>`).join('')}
         </tbody>
         <tfoot>
           <tr style="background:var(--bg-dark);">
             <td colspan="2" style="font-weight:700;">الإجمالي</td>
             <td>${entries.reduce((s,e)=>s+e[1].qty,0)}</td>
-            <td style="color:var(--success);font-weight:900;">${total.toFixed(2)} ${currency}</td>
+            <td style="color:var(--success);font-weight:900;">${formatDZ(total)}</td>
           </tr>
         </tfoot>
       </table>
@@ -1741,7 +1741,7 @@ async function loadScalePanel() {
   });
 
   const total = scaleEntries.reduce((s, i) => s + i.total, 0);
-  document.getElementById('scaleTotalVal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('scaleTotalVal').textContent = formatDZ(total);
 
   if (!scaleEntries.length) {
     document.getElementById('scaleListWrap').innerHTML = `
@@ -1759,8 +1759,8 @@ async function loadScalePanel() {
             `<tr>
               <td><b>${i.productName||'—'}</b></td>
               <td>${i.quantity} ${i.unit||'كغ'}</td>
-              <td>${i.unitPrice?.toFixed(2)||'—'} ${currency}</td>
-              <td style="color:var(--primary-light);font-weight:700;">${i.total.toFixed(2)} ${currency}</td>
+              <td>${i.unitPrice != null ? formatDZ(i.unitPrice) : '—'}</td>
+              <td style="color:var(--primary-light);font-weight:700;">${formatDZ(i.total)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -1786,7 +1786,7 @@ async function addScaleEntry() {
     isDebt: 0, isCancelled: 0, isScale: true, date: now
   });
   await dbAdd('saleItems', { saleId, productName, productId: 0, quantity: weight, unitPrice: price, total, isScale: true, unit: 'كغ', date: now });
-  toast(`✅ تم إضافة: ${productName} — ${total.toFixed(2)} ${currency}`, 'success');
+  toast(`✅ تم إضافة: ${productName} — ${formatDZ(total)}`, 'success');
   await refreshData();
   loadScalePanel();
   updateSidebarValues();
@@ -1835,7 +1835,7 @@ async function closeDay() {
   await EMAIL.sendDailyReport({ revenue, cost, expenses, profit, debts, salesCount });
 
   // طباعة تقرير إقفال اليوم
-  const fmt = v => parseFloat(v).toFixed(2) + ' ' + cur;
+  const fmt = v => formatDZ(v);
   const lineW = 40;
   const H = '━'.repeat(lineW);
   const L = '─'.repeat(lineW);
@@ -1940,7 +1940,7 @@ function renderArchive(list) {
   const total = list.filter(s => !s.isCancelled && !s.isDebt).reduce((s,x) => s + x.total, 0);
 
   document.getElementById('archiveCount').textContent = list.length + ' فاتورة';
-  document.getElementById('archiveTotal').textContent = total.toFixed(2) + ' ' + currency;
+  document.getElementById('archiveTotal').textContent = formatDZ(total);
 
   if (!list.length) {
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">🗂️</div><p>لا توجد فواتير بهذه المعايير</p></div>';
@@ -1967,7 +1967,7 @@ function renderArchive(list) {
       <td><span style="font-size:0.78rem;color:var(--text-secondary);">${dateStr}</span><br>
           <span style="font-size:0.75rem;color:var(--text-secondary);">${timeStr}</span></td>
       <td>${c ? c.name : '<span style="color:var(--text-secondary);">—</span>'}</td>
-      <td><b>${s.total.toFixed(2)} ${currency}</b></td>
+      <td><b>${formatDZ(s.total)}</b></td>
       <td>${badge}</td>
       <td class="actions">
         <button class="btn btn-sm btn-secondary" onclick="reprrintSaleR(${s.id})" title="إعادة طباعة">🖨️</button>
@@ -1997,8 +1997,8 @@ async function showSaleDetail(saleId) {
     ? items.map(i => `<tr>
         <td>${i.productName||'—'}</td>
         <td style="text-align:center;">${i.quantity}</td>
-        <td style="text-align:left;">${(i.unitPrice||0).toFixed(2)} ${currency}</td>
-        <td style="text-align:left;font-weight:700;color:var(--primary-light);">${(i.total||0).toFixed(2)} ${currency}</td>
+        <td style="text-align:left;">${formatDZ((i.unitPrice||0))}</td>
+        <td style="text-align:left;font-weight:700;color:var(--primary-light);">${formatDZ((i.total||0))}</td>
       </tr>`).join('')
     : `<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);">لا توجد بنود</td></tr>`;
 
@@ -2023,8 +2023,8 @@ async function showSaleDetail(saleId) {
         <tbody>${itemsHTML}</tbody>
       </table>
       <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:0.88rem;">
-        <span>الإجمالي: <b style="color:var(--primary-light);">${sale.total.toFixed(2)} ${currency}</b></span>
-        ${sale.discount>0 ? `<span>الخصم: <b style="color:var(--warning);">${sale.discount.toFixed(2)} ${currency}</b></span>` : ''}
+        <span>الإجمالي: <b style="color:var(--primary-light);">${formatDZ(sale.total)}</b></span>
+        ${sale.discount>0 ? `<span>الخصم: <b style="color:var(--warning);">${formatDZ(sale.discount)}</b></span>` : ''}
         ${sale.isDebt ? `<span style="color:#e74c3c;">📋 دين</span>` : `<span style="color:var(--success);">✅ مسدد</span>`}
         ${sale.note ? `<span>📝 ${sale.note}</span>` : ''}
       </div>
@@ -2083,8 +2083,8 @@ function renderArchiveDebts(list) {
 
   const activeTotal = allDebtsDB.filter(d=>!d.isPaid).reduce((s,d)=>s+d.amount,0);
   const paidTotal   = allDebtsDB.filter(d=>d.isPaid).reduce((s,d)=>s+(d.originalAmount||d.amount),0);
-  document.getElementById('archDebtActive').textContent = activeTotal.toFixed(2)+' '+currency+' ('+allDebtsDB.filter(d=>!d.isPaid).length+')';
-  document.getElementById('archDebtPaid').textContent   = paidTotal.toFixed(2)+' '+currency+' ('+allDebtsDB.filter(d=>d.isPaid).length+')';
+  document.getElementById('archDebtActive').textContent = formatDZ(activeTotal)+' ('+allDebtsDB.filter(d=>!d.isPaid+')'.length+')';
+  document.getElementById('archDebtPaid').textContent   = formatDZ(paidTotal)+' ('+allDebtsDB.filter(d=>d.isPaid+')'.length+')';
 
   if (!list.length) {
     wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>لا توجد ديون</p></div>';
@@ -2102,7 +2102,7 @@ function renderArchiveDebts(list) {
     if (d.isPaid)
       badge = `<span class="badge badge-success">✅ مسدد — ${formatDate(d.paidDate||d.date)}</span>`;
     else if (paid > 0)
-      badge = `<span class="badge badge-warning">🟡 جزئي — متبقي: ${d.amount.toFixed(2)} ${currency}</span>`;
+      badge = `<span class="badge badge-warning">🟡 جزئي — متبقي: ${formatDZ(d.amount)}</span>`;
     else
       badge = `<span class="badge badge-danger">📋 قائم</span>`;
 
@@ -2115,14 +2115,14 @@ function renderArchiveDebts(list) {
         ${formatDate(d.date)}<br>
         <span style="color:${daysColor};font-size:0.75rem;font-weight:700;">منذ ${daysAgo} يوم</span>
       </td>
-      <td><b style="color:#e74c3c;">${orig.toFixed(2)} ${currency}</b></td>
-      <td>${paid>0?`<span style="color:var(--success);">${paid.toFixed(2)} ${currency}</span>`:'—'}</td>
-      <td><b style="color:${d.isPaid?'var(--success)':'#e74c3c'};">${d.amount.toFixed(2)} ${currency}</b></td>
+      <td><b style="color:#e74c3c;">${formatDZ(orig)}</b></td>
+      <td>${paid>0?`<span style="color:var(--success);">${formatDZ(paid)}</span>`:'—'}</td>
+      <td><b style="color:${d.isPaid?'var(--success)':'#e74c3c'};">${formatDZ(d.amount)}</b></td>
       <td>${badge}</td>
       <td class="actions">
         ${sale?`<button class="btn btn-sm btn-secondary" onclick="reprrintSaleR(${sale.id})" title="طباعة">🖨️</button>`:''}
         <a href="customers.html" class="btn btn-sm btn-primary" title="إدارة الزبون">👤</a>
-        ${!d.isPaid&&c?.phone?`<a href="https://wa.me/${c.phone.replace(/\D/g,'')}?text=${encodeURIComponent('السلام عليكم '+c.name+' — تذكير بدين بقيمة '+d.amount.toFixed(2)+' '+currency+'. شكراً.')}" target="_blank" class="btn btn-sm btn-success" title="واتساب">💬</a>`:''}
+        ${!d.isPaid&&c?.phone?`<a href="https://wa.me/${c.phone.replace(/\D/g,'')}?text=${encodeURIComponent('السلام عليكم '+c.name+' — تذكير بدين بقيمة '+formatDZ(d.amount)+'. شكراً.')}" target="_blank" class="btn btn-sm btn-success" title="واتساب">💬</a>`:''}
       </td>
     </tr>`;
   }).join('');
@@ -2207,7 +2207,7 @@ async function loadPeakHours() {
     <div style="background:rgba(124,58,237,0.1);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:flex;gap:20px;flex-wrap:wrap;">
       <span>⏰ أكثر ساعة: <b style="color:var(--primary-light);">${p2(topHour.hour)}:00</b> (${topHour.count} فاتورة)</span>
       <span>🧾 إجمالي الفواتير: <b>${sales.length}</b></span>
-      <span>💰 إجمالي المبيعات: <b style="color:var(--success);">${sales.reduce((s,x)=>s+x.total,0).toFixed(2)} ${currency}</b></span>
+      <span>💰 إجمالي المبيعات: <b style="color:var(--success);">${formatDZ(sales.reduce((s,x)=>s+x.total,0))}</b></span>
     </div>
     <div style="overflow-x:auto;">
       <table class="data-table" id="peakHoursWrapTable" style="font-size:0.85rem;">
@@ -2285,7 +2285,7 @@ async function loadSellersPanel() {
     <div style="background:rgba(124,58,237,0.1);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:12px;display:flex;gap:20px;flex-wrap:wrap;">
       <span>👥 عدد البائعين: <b>${sorted.length}</b></span>
       <span>🧾 إجمالي الفواتير: <b>${sales.length}</b></span>
-      <span>💰 إجمالي المبيعات: <b style="color:var(--success);">${grandTotal.toFixed(2)} ${currency}</b></span>
+      <span>💰 إجمالي المبيعات: <b style="color:var(--success);">${formatDZ(grandTotal)}</b></span>
     </div>
     <div style="overflow-x:auto;" id="sellersWrapTable">
       <table class="data-table" style="font-size:0.85rem;">
