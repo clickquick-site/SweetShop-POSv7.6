@@ -84,11 +84,13 @@ const POSDZ_PRINT = (() => {
     const P = mm2px(0.7);  // padding
 
     // أحجام الخطوط
-    const FS  = Math.max(9, Math.min(26, parseInt(fs)||11));
-    const FSS = Math.max(7, FS - 2);
-    const FSP = Math.max(8, FS);
-    const FSN = Math.max(7, FS - 3);
-    const FSR = Math.max(9, FS + 2);
+    // حجم الخط متناسب مع ارتفاع الملصق الفعلي بالبكسل
+    const baseFS = Math.round(H * 0.13);          // 13% من ارتفاع الملصق
+    const FS  = Math.max(12, Math.min(40, baseFS));
+    const FSS = Math.max(10, FS - 3);             // اسم المتجر
+    const FSP = Math.max(12, FS);                 // اسم المنتج
+    const FSN = Math.max(9,  Math.round(FS*0.75));// رقم الباركود
+    const FSR = Math.max(14, Math.round(FS*1.2)); // السعر
     const font = '"'+(bcFont||'Arial')+'", Arial, sans-serif';
 
     const cv = document.createElement('canvas');
@@ -177,18 +179,17 @@ const POSDZ_PRINT = (() => {
     // ── تدوير الملصق 90° عكس عقارب الساعة ──────────────────
     // الملصق 40x20 يُطبع على لاصق مفرود أفقياً
     // الطابعة تسحب الورق عمودياً → يجب تدوير المحتوى 90°
-    // عند 45°: القطر = sqrt(W²+H²) هو الحجم المطلوب للـ canvas
-    const diag = Math.ceil(Math.sqrt(W*W + H*H));
+    // عند 90°: العرض والارتفاع يتبادلان
     const rotated = document.createElement('canvas');
-    rotated.width  = diag;
-    rotated.height = diag;
+    rotated.width  = H;
+    rotated.height = W;
     const rctx = rotated.getContext('2d');
     rctx.fillStyle = '#fff';
     rctx.fillRect(0, 0, rotated.width, rotated.height);
-    // نضع مركز الدوران في وسط الـ canvas
-    rctx.translate(diag / 2, diag / 2);
-    rctx.rotate(-Math.PI / 4);
-    rctx.drawImage(cv, -W / 2, -H / 2);
+    // عند 90° عكس عقارب الساعة: translate(0, W)
+    rctx.translate(0, W);
+    rctx.rotate(-Math.PI / 2);
+    rctx.drawImage(cv, 0, 0);
 
     return rotated;
   }
@@ -302,9 +303,8 @@ const POSDZ_PRINT = (() => {
 
     const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
     const canvas = await _drawLabel(product, opts);
-    // الصورة مدوّرة 45° → نمرر القطر كعرض وارتفاع
-    const diagMM = Math.ceil(Math.sqrt(size.w*size.w + size.h*size.h));
-    const html   = _makeHTML(canvas, diagMM, diagMM);
+    // الصورة مدوّرة 90° → نبادل العرض والارتفاع
+    const html   = _makeHTML(canvas, size.h, size.w);
 
     for (let i=0; i<copies; i++) {
       if (i>0) await new Promise(r => setTimeout(r, 700));
