@@ -174,7 +174,21 @@ const POSDZ_PRINT = (() => {
       ctx.fillText(pr, W/2, y);
     }
 
-    return cv;
+    // ── تدوير الملصق 90° عكس عقارب الساعة ──────────────────
+    // الملصق 40x20 يُطبع على لاصق مفرود أفقياً
+    // الطابعة تسحب الورق عمودياً → يجب تدوير المحتوى 90°
+    const rotated = document.createElement('canvas');
+    rotated.width  = H;   // العرض الجديد = الارتفاع القديم
+    rotated.height = W;   // الارتفاع الجديد = العرض القديم
+    const rctx = rotated.getContext('2d');
+    rctx.fillStyle = '#fff';
+    rctx.fillRect(0, 0, rotated.width, rotated.height);
+    // ندير 90° عكس عقارب الساعة (CCW)
+    rctx.translate(0, W);
+    rctx.rotate(-Math.PI / 2);
+    rctx.drawImage(cv, 0, 0);
+
+    return rotated;
   }
 
   // ── بناء HTML الطباعة ──────────────────────────────────────
@@ -286,7 +300,8 @@ const POSDZ_PRINT = (() => {
 
     const opts   = {sName,cur,bcFont,bcType,showStore,showName,showPrice,size,fs,bv};
     const canvas = await _drawLabel(product, opts);
-    const html   = _makeHTML(canvas, size.w, size.h);
+    // الصورة مدوّرة 90° → نبادل العرض والارتفاع في HTML
+    const html   = _makeHTML(canvas, size.h, size.w);
 
     for (let i=0; i<copies; i++) {
       if (i>0) await new Promise(r => setTimeout(r, 700));
