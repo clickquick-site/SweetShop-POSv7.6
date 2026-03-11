@@ -69,7 +69,7 @@
   </header>
   <div class="main-content">
     <div class="section-header">
-      <a href="sale.html" class="back-btn" id="backBtn"><i class="fa-solid fa-arrow-right"></i></a>
+      <a href="sale.html" class="back-btn" id="backBtn">← رجوع</a>
       <h2 class="page-title" id="pageTitle">⚙️ الإعدادات العامة</h2>
     </div>
 
@@ -315,7 +315,7 @@
                 <div class="printer-card-desc">اضغط على الزر لفتح إعدادات الطابعة</div>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn btn-secondary btn-sm" onclick="openPrinterDialog('invoice')" title="فتح إعدادات الطابعة في الحاسوب">🖥️ اختيار الطابعة</button>
+                <button class="btn btn-secondary btn-sm" onclick="POSDZ_PRINT.choosePrinter('invoice')">🖥️ اختيار الطابعة</button>
                 <button class="btn btn-primary btn-sm" onclick="testPrintInvoice()" title="طباعة تجريبية">🔍 تجريبي</button>
               </div>
             </div>
@@ -354,7 +354,7 @@
                 <div class="printer-card-desc">اضغط "بحث" لطباعة اختبارية ثم اختر الطابعة من نافذة الطباعة</div>
               </div>
               <div style="display:flex;gap:8px;margin-top:6px;">
-                <button class="btn btn-secondary btn-sm" onclick="openPrinterDialog('barcode')">🔍 بحث وتجربة</button>
+                <button class="btn btn-secondary btn-sm" onclick="POSDZ_PRINT.choosePrinter('barcode')">🖨️ اختيار الطابعة</button>
                 <button class="btn btn-ghost btn-sm" onclick="clearPrinterName('barcode')" title="مسح الاسم المحفوظ">✕ مسح</button>
               </div>
             </div>
@@ -968,7 +968,7 @@ const I18N = {
     pageTitle:'⚙️ الإعدادات العامة',
     tabBtnProgram:'💻 البرنامج', tabBtnStore:'🏪 المتجر', tabBtnPrint:'🖨️ الطباعة',
     tabBtnSystem:'🔧 النظام', tabBtnNotifs:'🔔 الإشعارات', tabBtnAbout:'ℹ️ حول',
-    backBtn:'<i class="fa-solid fa-arrow-right"></i>', saveBtn:'💾 حفظ البيانات',
+    backBtn:'← رجوع', saveBtn:'💾 حفظ البيانات',
     labelDate:'📅 صيغة التاريخ', labelCurrency:'💰 رمز العملة',
     labelLang:'🌐 لغة البرنامج', labelLangDesc:'تطبيق فوري على كل صفحات التطبيق',
     labelFont:'🔤 خط التطبيق', labelFontSize:'🔡 حجم الخط',
@@ -1047,7 +1047,7 @@ function applyTranslation(lang) {
   const pageTitle = document.getElementById('pageTitle');
   if (pageTitle) pageTitle.textContent = t.pageTitle || t.settGeneral || '';
   const backBtn = document.getElementById('backBtn');
-  if (backBtn) backBtn.textContent = t.backBtn || t.btnBack || '<i class="fa-solid fa-arrow-right"></i>';
+  if (backBtn) backBtn.textContent = t.backBtn || t.btnBack || '← رجوع';
 
   // Tab buttons
   ['tabBtnProgram','tabBtnStore','tabBtnPrint','tabBtnSystem','tabBtnNotifs','tabBtnAbout'].forEach(id => {
