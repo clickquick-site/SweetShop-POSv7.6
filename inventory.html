@@ -431,21 +431,31 @@ async function saveProduct() {
   const name = document.getElementById('productName').value.trim();
   if (!name) { toast('اسم المنتج مطلوب', 'warning'); return; }
 
-  // Check duplicate name
+  const familyId = parseInt(document.getElementById('productFamily').value) || null;
+  const size     = document.getElementById('productSize').value.trim();
+  const unit     = document.getElementById('productUnit').value;
+
+  // ══ فحص التكرار الثلاثي: العائلة + الاسم + الحجم/الوحدة ══
   const all = await dbGetAll('products');
-  const dup = all.find(p => p.name === name && p.id !== parseInt(id));
+  const dup = all.find(p =>
+    p.id !== parseInt(id) &&
+    p.name === name &&
+    (p.familyId || null) === familyId &&
+    (p.size || '') === size &&
+    (p.unit || '') === unit
+  );
   if (dup) {
+    document.getElementById('nameError').textContent =
+      `⚠️ منتج مطابق موجود مسبقاً — (${name}${size?' — '+size:''}) في نفس العائلة والوحدة`;
     document.getElementById('nameError').style.display = 'block';
     return;
   }
   document.getElementById('nameError').style.display = 'none';
-
-  const familyId = parseInt(document.getElementById('productFamily').value) || null;
   const product = {
     familyId, name,
     barcode: document.getElementById('productBarcode').value.trim(),
-    size: document.getElementById('productSize').value.trim(),
-    unit: document.getElementById('productUnit').value,
+    size,
+    unit,
     buyPrice: parseFloat(document.getElementById('productBuyPrice').value) || 0,
     sellPrice: parseFloat(document.getElementById('productSellPrice').value) || 0,
     quantity: parseInt(document.getElementById('productQty').value) || 0,
